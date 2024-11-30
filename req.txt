@@ -1,0 +1,10 @@
+streamlit==1.36.0
+python-docx
+python-dotenv
+PyPDF2==3.0.1
+google-generativeai
+ipython
+streamlit-extras
+pillow==10.3.0 
+pillow_heif==0.18.0
+pypdf
