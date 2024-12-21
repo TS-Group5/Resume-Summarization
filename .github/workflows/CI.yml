@@ -78,11 +78,6 @@ jobs:
     - name: Repo Checkout
       uses: actions/checkout@v3
 
-    - uses: actions/download-artifact@v2
-      with:
-        name: my-build-package
-        path: bikeshare_model_api
-
     - name: Login to Docker hub
       env:
         DOCKER_USER: ${{ secrets.DOCKER_USER_NAME }}
@@ -92,12 +87,12 @@ jobs:
     - name: Build the Docker image for Fastapi app
       env:
         DOCKER_USER: ${{ secrets.DOCKER_USER_NAME }}
-      run: docker build . -f Dockerfile -t $DOCKER_USER/bikeshare-api:latest
+      run: docker build . -f Dockerfile -t $DOCKER_USER/resume-summarization:latest
 
     - name: Push the Docker Image
       env:
         DOCKER_USER: ${{ secrets.DOCKER_USER_NAME }}
-      run: docker push $DOCKER_USER/bikeshare-api
+      run: docker push $DOCKER_USER/resume-summarization
 
     - name: Logout to Docker hub
       run: docker logout
