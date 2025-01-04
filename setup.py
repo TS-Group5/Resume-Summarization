@@ -22,6 +22,7 @@ setup(
         "numpy>=1.21.0",  # For numerical operations
         "pandas>=1.3.0",  # For data manipulation
         "matplotlib>=3.4.0",  # For data visualization
+        "plotly>=5.0.0",  # For interactive data visualization
     ],
     extras_require={
         "dev": [

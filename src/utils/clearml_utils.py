@@ -5,6 +5,7 @@ import os
 import json
 import matplotlib.pyplot as plt
 import pandas as pd
+import yaml
 
 def init_clearml_task(
     project_name: str = "Resume-Summarization",
@@ -13,6 +14,12 @@ def init_clearml_task(
     tags: Optional[List[str]] = None
 ) -> Task:
     """Initialize a ClearML task."""
+    # Load config
+    with open('config.yaml', 'r') as f:
+        config = yaml.safe_load(f)
+    
+    clearml_config = config.get('clearml', {})
+    
     # Close any existing task
     try:
         current_task = Task.current_task()
@@ -21,14 +28,39 @@ def init_clearml_task(
     except Exception:
         pass
         
+    # Use config values with fallbacks to parameters
+    project_name = clearml_config.get('project_name', project_name)
+    task_type = clearml_config.get('task_type', task_type)
+    queue = clearml_config.get('queue', 'default')
+    worker_config = clearml_config.get('worker', {})
+    
+    # Combine provided tags with worker tags
+    all_tags = set(tags or [])
+    all_tags.update(worker_config.get('tags', []))
+    
     # Initialize new task
     task = Task.init(
         project_name=project_name,
         task_name=task_name,
         task_type=task_type,
-        tags=tags,
+        tags=list(all_tags),
         auto_connect_frameworks={'pytorch': False}
     )
+    
+    # Set worker information and queue as task parameters
+    if worker_config:
+        task.set_parameters(
+            {
+                "worker": {
+                    "name": worker_config.get('name', 'default-worker'),
+                    "queue": queue
+                },
+                "execution": {
+                    "queue": queue
+                }
+            }
+        )
+    
     return task
 
 def get_logger() -> Logger:

@@ -25,8 +25,18 @@ model:
     top_p: 0.9
     top_k: 50
     repetition_penalty: 1.2
+    num_return_sequences: 1
 
 # File Configuration
 file:
   allowed_extensions: ["docx"]
   temp_dir: "temp"
+
+# ClearML Configuration
+clearml:
+  project_name: "Resume-Summarization"
+  task_type: "inference"
+  queue: "default"
+  worker:
+    name: "resume-worker"
+    tags: ["gpt2", "inference"]

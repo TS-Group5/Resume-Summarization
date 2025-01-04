@@ -6,6 +6,8 @@ import re
 import torch
 import logging
 import os
+import time
+import yaml
 from clearml import Task
 from utils.clearml_utils import (
     init_clearml_task, log_model_parameters, log_metric, log_text,
@@ -27,58 +29,47 @@ class GenericGPT2Model(BaseModel):
         super().__init__()
         self.task = task
         try:
+            # Load config
+            with open('config.yaml', 'r') as f:
+                config = yaml.safe_load(f)
+            
+            # Get model configuration
+            model_config = config['model']
+            self.GENERATION_CONFIG = model_config['parameters']
+            
             # Use base GPT2 for more stable generation
             logger.info("Loading model and tokenizer...")
-            model_name = "gpt2"  # Base GPT2 model
+            model_name = model_config['name']
+            cache_dir = model_config['cache_dir']
             
             # Determine device (GPU/CPU)
             device = "cuda" if torch.cuda.is_available() else "cpu"
             logger.info(f"Using device: {device}")
             
             # Load tokenizer and model with caching
-            self.tokenizer = GPT2Tokenizer.from_pretrained(model_name, cache_dir=".model_cache")
-            self.model = GPT2LMHeadModel.from_pretrained(model_name, cache_dir=".model_cache")
+            self.tokenizer = GPT2Tokenizer.from_pretrained(model_name, cache_dir=cache_dir)
+            self.model = GPT2LMHeadModel.from_pretrained(model_name, cache_dir=cache_dir)
             
             # Move model to appropriate device
             self.model = self.model.to(device)
             
-            # Initialize the generator pipeline
+            # Initialize the generator pipeline with the configuration
             self.pipeline = pipeline(
                 'text-generation',
                 model=self.model,
                 tokenizer=self.tokenizer,
                 device=0 if device == "cuda" else -1,
-                max_length=800,    # Balanced length
-                min_length=300,    # Ensure substantial content
-                num_return_sequences=1,
-                temperature=0.7,   # Balanced creativity
-                top_p=0.9,
-                top_k=50,
-                repetition_penalty=1.2,
                 pad_token_id=self.tokenizer.eos_token_id,
-                do_sample=True
+                do_sample=True,
+                **self.GENERATION_CONFIG
             )
-            
-            # Set generation parameters
-            self.max_length = 800
-            self.min_length = 300
-            self.num_return_sequences = 1
-            self.temperature = 0.7
-            self.top_p = 0.9
-            self.top_k = 50
-            self.repetition_penalty = 1.2
             
             # Log model parameters if task exists
             if self.task:
                 log_model_parameters({
                     "model_name": model_name,
                     "device": device,
-                    "max_length": self.max_length,
-                    "min_length": self.min_length,
-                    "temperature": self.temperature,
-                    "top_p": self.top_p,
-                    "top_k": self.top_k,
-                    "repetition_penalty": self.repetition_penalty
+                    **self.GENERATION_CONFIG
                 })
             
             logger.info("Model initialized successfully")
@@ -274,13 +265,7 @@ Begin the script now:
             start_time = time.time()
             generated_script = self.pipeline(
                 prompt,
-                max_length=self.max_length,
-                min_length=self.min_length,
-                num_return_sequences=self.num_return_sequences,
-                temperature=self.temperature,
-                top_p=self.top_p,
-                top_k=self.top_k,
-                repetition_penalty=self.repetition_penalty
+                **self.GENERATION_CONFIG
             )[0]['generated_text']
             generation_time = time.time() - start_time
             

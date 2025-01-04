@@ -1,10 +1,11 @@
 """Quality monitoring utilities using ClearML."""
 from typing import Dict, Any, List, Optional
 from clearml import Logger, Task
-import numpy as np
-from rouge_score import rouge_scorer
 import logging
 import time
+import pandas as pd
+import numpy as np
+from rouge_score import rouge_scorer
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +31,12 @@ class QualityMonitor:
             self.rouge_scores = []
             self.summary_lengths = []
             self.error_counts = 0
+            
+            # Initialize DataFrames for tracking
+            self.metrics_df = pd.DataFrame(columns=[
+                'timestamp', 'generation_time', 'summary_length',
+                'rouge1', 'rouge2', 'rougeL', 'error'
+            ])
             
             logger.info("Quality monitor initialized successfully")
             
@@ -108,6 +115,18 @@ class QualityMonitor:
                     table_plot=metadata
                 )
             
+            # Update DataFrame
+            new_row = pd.DataFrame({
+                'timestamp': [time.time()],
+                'generation_time': [generation_time],
+                'summary_length': [len(generated_text)],
+                'rouge1': [rouge_metrics['rouge1_f1']],
+                'rouge2': [rouge_metrics['rouge2_f1']],
+                'rougeL': [rouge_metrics['rougeL_f1']],
+                'error': [0]
+            })
+            self.metrics_df = pd.concat([self.metrics_df, new_row], ignore_index=True)
+            
             return rouge_metrics
             
         except Exception as e:
@@ -119,7 +138,54 @@ class QualityMonitor:
                 value=self.error_counts,
                 iteration=len(self.rouge_scores)
             )
+            
+            # Update DataFrame with error
+            new_row = pd.DataFrame({
+                'timestamp': [time.time()],
+                'generation_time': [0],
+                'summary_length': [0],
+                'rouge1': [0],
+                'rouge2': [0],
+                'rougeL': [0],
+                'error': [1]
+            })
+            self.metrics_df = pd.concat([self.metrics_df, new_row], ignore_index=True)
+            
             return {}
+    
+    def check_quality(self, generated_script: str, thresholds: Dict[str, float]) -> Dict[str, float]:
+        """Check quality of generated script."""
+        try:
+            # Calculate ROUGE scores
+            rouge = Rouge()
+            scores = rouge.get_scores(generated_script, generated_script)[0]
+            
+            # Extract metrics
+            metrics = {
+                'rouge1_f1': scores['rouge-1']['f'],
+                'rouge2_f1': scores['rouge-2']['f'],
+                'rougeL_f1': scores['rouge-l']['f']
+            }
+            
+            # Log metrics
+            if self.task:
+                for metric_name, value in metrics.items():
+                    self.task.get_logger().report_scalar(
+                        "quality_metrics", 
+                        metric_name, 
+                        value
+                    )
+            
+            return metrics
+            
+        except Exception as e:
+            logger.error(f"Error checking quality: {str(e)}")
+            # Return default metrics on error
+            return {
+                'rouge1_f1': 0.0,
+                'rouge2_f1': 0.0,
+                'rougeL_f1': 0.0
+            }
     
     def log_error(self, error_message: str):
         """Log an error that occurred during processing."""
