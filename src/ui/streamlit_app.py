@@ -1,7 +1,12 @@
 import streamlit as st
 import requests
 import os
+import yaml
 from tempfile import NamedTemporaryFile
+
+# Load configuration
+with open("config.yaml", "r") as f:
+    config = yaml.safe_load(f)
 
 # Configure page
 st.set_page_config(
@@ -34,8 +39,8 @@ def main():
     # File uploader
     uploaded_file = st.file_uploader(
         f"Upload your {template_type}",
-        type=["docx"],
-        help="Upload your resume in .docx format"
+        type=config["file"]["allowed_extensions"],
+        help=f"Upload your resume in {', '.join(config['file']['allowed_extensions'])} format"
     )
     
     if uploaded_file:
@@ -65,8 +70,9 @@ def main():
                     
                     # Make API request
                     with open(temp_file.name, 'rb') as f:
+                        api_url = f"{config['api']['base_url']}{config['api']['endpoints']['generate_script']}"
                         response = requests.post(
-                            "http://localhost:8000/generate-script",
+                            api_url,
                             files={"file": f},
                             data=data
                         )

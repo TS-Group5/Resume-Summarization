@@ -28,9 +28,31 @@ A powerful tool that generates engaging video scripts from resume templates usin
 
 ### Prerequisites
 - Python 3.11+
-- Virtual environment (recommended)
+- Docker (recommended) or Python virtual environment
 
-### Installation
+### Option 1: Using Docker (Recommended)
+
+1. Clone the repository:
+```bash
+git clone https://github.com/TS-Group5/Resume-Summarization.git
+cd Resume-Summarization
+```
+
+2. Build the Docker image:
+```bash
+docker build -t resume-summarization .
+```
+
+3. Run the container:
+```bash
+docker run -p 8080:8080 -p 8502:8502 resume-summarization
+```
+
+4. Access the application:
+- Frontend UI: http://localhost:8502
+- API Documentation: http://localhost:8080/docs
+
+### Option 2: Local Development
 
 1. Clone the repository:
 ```bash
@@ -40,45 +62,49 @@ cd Resume-Summarization
 
 2. Create and activate virtual environment:
 ```bash
-python -m venv env
-source env/bin/activate  # On Windows: .\env\Scripts\activate
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .\.venv\Scripts\activate
 ```
 
 3. Install dependencies:
 ```bash
-pip install -r requirements.txt
+pip install -e .
 ```
 
-### Running the Application
-
-1. Start the FastAPI backend:
+4. Start the FastAPI backend:
 ```bash
 # Terminal 1
-cd /path/to/Resume-Summarization
-./env/bin/python src/api/app.py
+uvicorn src.api.app:app --host 0.0.0.0 --port 8080
 ```
 
-2. Start the Streamlit frontend:
+5. Start the Streamlit frontend:
 ```bash
 # Terminal 2
-cd /path/to/Resume-Summarization
-./env/bin/streamlit run src/ui/streamlit_app.py
+streamlit run src/ui/streamlit_app.py --server.port 8502 --server.address 0.0.0.0
 ```
 
-3. Access the application:
-- Frontend UI: http://localhost:8501
-- API Documentation: http://localhost:8000/docs
+6. Access the application:
+- Frontend UI: http://localhost:8502
+- API Documentation: http://localhost:8080/docs
 
 ### Using the Application
 
-1. Open the Streamlit UI in your browser
-2. Upload a resume file (supported format: .docx, .txt)
+1. Open the Streamlit UI in your browser (http://localhost:8502)
+2. Upload a resume file (supported format: .docx)
 3. Select the industry type:
    - IT/Software
    - Restaurant Management
    - Healthcare
 4. Click "Generate Script" to create the video script
 5. View and use the generated script
+
+## Configuration
+
+The application uses a `config.yaml` file for configuration. Key settings include:
+- Server ports and hosts
+- API endpoints
+- Model parameters
+- File configurations
 
 ## Project Structure
 

@@ -4,9 +4,14 @@ from pydantic import BaseModel
 from typing import Optional
 import uvicorn
 import os
+import yaml
 from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST, REGISTRY
 from fastapi.responses import Response
 import time
+
+# Load configuration
+with open("config.yaml", "r") as f:
+    config = yaml.safe_load(f)
 
 from models.generic_gpt2_model import GenericGPT2Model
 from parsers.ats_parser import ATSParser
@@ -126,4 +131,10 @@ async def generate_script(
             os.remove(temp_path)
 
 if __name__ == "__main__":
-    uvicorn.run("app:app", host="0.0.0.0", port=8000, reload=True)
+    server_config = config["server"]["fastapi"]
+    uvicorn.run(
+        "app:app",
+        host=server_config["host"],
+        port=server_config["port"],
+        reload=server_config["reload"]
+    )
