@@ -7,22 +7,17 @@ import yaml
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
-from prometheus_client import (
-    CONTENT_TYPE_LATEST,
-    REGISTRY,
-    Counter,
-    Histogram,
-    generate_latest,
-)
+from prometheus_client import (CONTENT_TYPE_LATEST, REGISTRY, Counter,
+                               Histogram, generate_latest)
 from pydantic import BaseModel
-
-from models.generic_gpt2_model import GenericGPT2Model
-from parsers.ats_parser import ATSParser
-from parsers.industry_manager_parser import IndustryManagerParser
 
 # Load configuration
 with open("config.yaml", "r") as f:
     config = yaml.safe_load(f)
+
+from models.generic_gpt2_model import GenericGPT2Model
+from parsers.ats_parser import ATSParser
+from parsers.industry_manager_parser import IndustryManagerParser
 
 # Initialize model
 gpt2_model = GenericGPT2Model()
@@ -105,32 +100,41 @@ async def generate_script(
             parser = IndustryManagerParser(temp_path)
             template_label = "Industry Manager"
         else:
+            if ERROR_COUNT:
+                ERROR_COUNT.labels(
+                    template_type="unknown", error_type="invalid_template"
+                ).inc()
             raise HTTPException(
                 status_code=400,
-                detail="Invalid template type. Must be 'ats' or 'industry'",
+                detail="Invalid template type. Must be either 'ats' or 'industry'",
             )
 
         # Parse resume and generate script
-        parsed_data = parser.parse()
-        script = gpt2_model.generate_script(parsed_data, template_type)
+        resume_data = parser.parse()
+        print("==========================================", resume_data)
+        script = gpt2_model.generate_summary(resume_data)
 
-        # Update metrics
-        REQUESTS_TOTAL.labels(template_type=template_label).inc()
-        PROCESSING_TIME.labels(template_type=template_label).observe(
-            time.time() - start_time
-        )
+        # Record metrics if they exist
+        if REQUESTS_TOTAL:
+            REQUESTS_TOTAL.labels(template_type=template_label).inc()
+        if PROCESSING_TIME:
+            PROCESSING_TIME.labels(template_type=template_label).observe(
+                time.time() - start_time
+            )
 
-        return {"script": script, "template_type": template_label}
+        return ScriptResponse(script=script, template_type=template_label)
 
     except Exception as e:
-        # Update error metrics
-        ERROR_COUNT.labels(
-            template_type=template_type, error_type=type(e).__name__
-        ).inc()
+        # Record error metrics if they exist
+        if ERROR_COUNT:
+            error_type = type(e).__name__
+            ERROR_COUNT.labels(
+                template_type=template_type.lower(), error_type=error_type
+            ).inc()
         raise HTTPException(status_code=500, detail=str(e))
 
     finally:
-        # Clean up temporary file
+        # Clean up temp file
         if temp_path and os.path.exists(temp_path):
             os.remove(temp_path)
 
@@ -141,5 +145,5 @@ if __name__ == "__main__":
         "app:app",
         host=server_config["host"],
         port=server_config["port"],
-        reload=True,
+        reload=server_config["reload"],
     )
