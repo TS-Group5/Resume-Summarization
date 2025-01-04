@@ -34,8 +34,8 @@ A powerful tool that generates engaging video scripts from resume templates usin
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/tv3.git
-cd tv3
+git clone https://github.com/TS-Group5/Resume-Summarization.git
+cd Resume-Summarization
 ```
 
 2. Create and activate virtual environment:
@@ -54,14 +54,14 @@ pip install -r requirements.txt
 1. Start the FastAPI backend:
 ```bash
 # Terminal 1
-cd /path/to/tv3
+cd /path/to/Resume-Summarization
 ./env/bin/python src/api/app.py
 ```
 
 2. Start the Streamlit frontend:
 ```bash
 # Terminal 2
-cd /path/to/tv3
+cd /path/to/Resume-Summarization
 ./env/bin/streamlit run src/ui/streamlit_app.py
 ```
 
