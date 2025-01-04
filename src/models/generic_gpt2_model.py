@@ -15,24 +15,27 @@ class GenericGPT2Model(BaseModel):
         """Initialize the model."""
         super().__init__()
         try:
-            import torch
-            from transformers import AutoModelForCausalLM, AutoTokenizer
-            
             # Initialize ClearML task
             self.task = init_clearml_task(task_name="gpt2-inference")
+
+            # Hyperparameters configuration
+            self.hyperparameters = {
+                "model_name": "gpt2",
+                "max_length": 800,
+                "min_length": 300,
+                "num_return_sequences": 1,
+                "temperature": 0.7,
+                "top_p": 0.9,
+                "top_k": 50,
+                "repetition_penalty": 1.2
+            }
             
+            # Log model parameters
+            log_model_parameters(self.hyperparameters)
+
             # Use base GPT2 for more stable generation
             logger.info("Loading model and tokenizer...")
             model_name = "gpt2"  # Base GPT2 model
-            
-            # Log model parameters
-            model_params = {
-                "model_name": model_name,
-                "max_length": 1024,
-                "temperature": 0.7,
-                "top_p": 0.9
-            }
-            log_model_parameters(model_params)
             
             # Determine device (GPU/CPU)
             device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -51,25 +54,25 @@ class GenericGPT2Model(BaseModel):
                 model=self.model,
                 tokenizer=self.tokenizer,
                 device=0 if device == "cuda" else -1,
-                max_length=800,    # Balanced length
-                min_length=300,    # Ensure substantial content
-                num_return_sequences=1,
-                temperature=0.7,   # Balanced creativity
-                top_p=0.9,
-                top_k=50,
-                repetition_penalty=1.2,
+                max_length=self.hyperparameters["max_length"],    # Balanced length
+                min_length=self.hyperparameters["min_length"],    # Ensure substantial content
+                num_return_sequences=self.hyperparameters["num_return_sequences"],
+                temperature=self.hyperparameters["temperature"],   # Balanced creativity
+                top_p=self.hyperparameters["top_p"],
+                top_k=self.hyperparameters["top_k"],
+                repetition_penalty=self.hyperparameters["repetition_penalty"],
                 pad_token_id=self.tokenizer.eos_token_id,
                 do_sample=True
             )
             
             # Set generation parameters
-            self.max_length = 800
-            self.min_length = 300
-            self.num_return_sequences = 1
-            self.temperature = 0.7
-            self.top_p = 0.9
-            self.top_k = 50
-            self.repetition_penalty = 1.2
+            self.max_length = self.hyperparameters["max_length"]
+            self.min_length = self.hyperparameters["min_length"]
+            self.num_return_sequences = self.hyperparameters["num_return_sequences"]
+            self.temperature = self.hyperparameters["temperature"]
+            self.top_p = self.hyperparameters["top_p"]
+            self.top_k = self.hyperparameters["top_k"]
+            self.repetition_penalty = self.hyperparameters["repetition_penalty"]
             
             logger.info("Model initialized successfully")
             
