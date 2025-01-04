@@ -6,28 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  train:
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-    steps:
-    - uses: actions/checkout@v3
-    - name: Set up Python 3.11
-      uses: actions/setup-python@v3
-      with:
-        python-version: '3.11'
-    - name: Install dependencies
-      run: pip install -r requirements.txt
-    - name: Train and save pipeline
-      run: python bikeshare_model/train_pipeline.py
-    - uses: actions/upload-artifact@v3
-      with:
-        name: my-trained-pipeline
-        path: bikeshare_model/trained_models/*.pkl
-        retention-days: 1
-
   test:
-    needs: train
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -37,17 +16,15 @@ jobs:
       uses: actions/setup-python@v3
       with:
         python-version: '3.11'
-    - uses: actions/download-artifact@v3
-      with:
-        name: my-trained-pipeline
-        path: bikeshare_model/trained_models
+        
     - name: Install dependencies
       run: pip install -r requirements-test.txt
+      
     - name: Test with pytest
       run: pytest
 
   build:
-    needs: [train, test]
+    needs: [test]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
