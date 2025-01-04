@@ -23,4 +23,4 @@ jobs:
       - name: Run Docker Container
         env: 
           DOCKER_USER: ${{ secrets.DOCKER_USER_NAME }}
-        run: sudo docker run -it -d -p 8001:8001 --name resume-summarization-api-container $DOCKER_USER/resume-summarization:latest
+        run: sudo docker run -it -d -p 8080:8080 -p 8502:8502 --name resume-summarization-api-container $DOCKER_USER/resume-summarization:latest
