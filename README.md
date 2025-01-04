@@ -129,6 +129,59 @@ Each industry has specialized templates for:
 - Goals and aspirations
 - Contact information
 
+## System Architecture
+
+```mermaid
+graph TB
+    subgraph Frontend
+        UI[Streamlit UI]
+        Upload[File Upload]
+        Template[Template Selection]
+    end
+
+    subgraph Backend
+        API[FastAPI Backend]
+        Parser[Resume Parser]
+        Model[GPT-2 Model]
+        Cache[Model Cache]
+    end
+
+    subgraph Storage
+        Files[File Storage]
+    end
+
+    UI --> |HTTP/REST| API
+    Upload --> Files
+    Template --> |Parameter| API
+    API --> Parser
+    Parser --> Model
+    Model --> Cache
+    Model --> |Generate Script| API
+    API --> |Response| UI
+```
+
+## Application Flow
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant UI as Streamlit UI
+    participant API as FastAPI Backend
+    participant Parser as Resume Parser
+    participant Model as GPT-2 Model
+
+    User->>UI: Upload Resume
+    User->>UI: Select Template Type
+    UI->>API: POST /generate-script
+    API->>Parser: Parse Resume
+    Parser->>Parser: Extract Information
+    Parser->>Model: Send Structured Data
+    Model->>Model: Generate Script
+    Model->>API: Return Generated Script
+    API->>UI: Return Response
+    UI->>User: Display Script
+```
+
 ## Contributing
 
 Contributions are welcome! Please read our contributing guidelines and submit pull requests to our repository.
