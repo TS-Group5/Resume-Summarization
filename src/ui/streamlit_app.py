@@ -3,10 +3,26 @@ import requests
 import os
 import yaml
 from tempfile import NamedTemporaryFile
+import time
+import sys
+
+# Add the project root to Python path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+
+from ..utils.clearml_utils import init_clearml_task, log_metric, log_text
+from ..utils.resource_monitor import ResourceMonitor
+from ..utils.quality_monitor import QualityMonitor
 
 # Load configuration
 with open("config.yaml", "r") as f:
     config = yaml.safe_load(f)
+
+# Initialize monitoring
+resource_monitor = ResourceMonitor(task_name="streamlit-monitoring")
+quality_monitor = QualityMonitor(task_name="streamlit-quality")
+
+# Start resource monitoring
+resource_monitor.start_monitoring()
 
 # Configure page
 st.set_page_config(
@@ -18,108 +34,89 @@ st.set_page_config(
 def main():
     st.title("Resume Video Script Generator 🎥")
     
-    # Template selection
-    template_type = st.selectbox(
-        "Select Resume Template Type",
-        ["ATS/HR Resume", "Industry Manager Resume"]
-    )
-    
-    st.sidebar.header("About")
-    st.sidebar.info(
-        "This application generates video scripts from resume templates. "
-        "Select your template type and upload your resume to get started."
-    )
-    
-    # Main content
-    st.header("Generate Video Script")
-    
-    # Convert selection to API parameter
-    template_param = "ats" if template_type == "ATS/HR Resume" else "industry"
-    
-    # File uploader
-    uploaded_file = st.file_uploader(
-        f"Upload your {template_type}",
-        type=config["file"]["allowed_extensions"],
-        help=f"Upload your resume in {', '.join(config['file']['allowed_extensions'])} format"
-    )
-    
-    if uploaded_file:
-        st.success("File uploaded successfully!")
+    try:
+        # Template selection
+        template_type = st.selectbox(
+            "Select Resume Template Type",
+            ["ATS/HR Resume", "Industry Manager Resume"]
+        )
         
-        # Display file info
-        st.write("File details:")
-        st.json({
-            "Filename": uploaded_file.name,
-            "Size": f"{uploaded_file.size / 1024:.2f} KB",
-            "Type": uploaded_file.type,
-            "Template": template_type
-        })
+        st.sidebar.header("About")
+        st.sidebar.info(
+            "This application generates video scripts from resume templates. "
+            "Select your template type and upload your resume to get started."
+        )
         
-        # Generate button
-        if st.button("Generate Video Script", type="primary"):
-            with st.spinner("Generating video script..."):
+        # Main content
+        st.header("Generate Video Script")
+        
+        # Convert selection to API parameter
+        template_param = "ats" if template_type == "ATS/HR Resume" else "industry"
+        
+        # File uploader
+        uploaded_file = st.file_uploader(
+            f"Upload your {template_type}",
+            type=config["file"]["allowed_extensions"],
+            help="Upload your resume in PDF or DOCX format"
+        )
+        
+        if uploaded_file is not None:
+            with st.spinner('Generating video script...'):
+                start_time = time.time()
+                
                 try:
-                    # Create API request with template type
+                    # Prepare the files and data for the API request
                     files = {"file": uploaded_file}
                     data = {"template_type": template_param}
                     
-                    # Save the uploaded file temporarily
-                    temp_file = NamedTemporaryFile(delete=False, suffix='.docx')
-                    temp_file.write(uploaded_file.getvalue())
-                    temp_file.close()
-                    
                     # Make API request
-                    with open(temp_file.name, 'rb') as f:
-                        api_url = f"{config['api']['base_url']}{config['api']['endpoints']['generate_script']}"
-                        response = requests.post(
-                            api_url,
-                            files={"file": f},
-                            data=data
-                        )
-                    
-                    # Clean up temp file
-                    os.unlink(temp_file.name)
+                    response = requests.post(
+                        f"{config['server']['fastapi']['url']}/generate",
+                        files=files,
+                        data=data
+                    )
                     
                     if response.status_code == 200:
-                        data = response.json()
+                        result = response.json()
+                        script = result["script"]
                         
-                        # Display results
-                        st.header("Generated Script")
-                        st.info(f"Template Type: {data['template_type']}")
+                        # Track UI metrics
+                        processing_time = time.time() - start_time
+                        log_metric("UI", "processing_time", processing_time)
+                        log_metric("UI", "file_size", len(uploaded_file.getvalue()))
                         
-                        # Display script in a text area
-                        st.text_area(
-                            "Generated Script",
-                            value=data['script'],
-                            height=300,
-                            disabled=True
+                        # Display the generated script
+                        st.success("Script generated successfully!")
+                        st.text_area("Generated Video Script", script, height=300)
+                        
+                        # Track quality metrics
+                        quality_monitor.track_generation_quality(
+                            generated_text=script,
+                            reference_text="",  # No reference text for now
+                            generation_time=processing_time,
+                            metadata={
+                                "template_type": template_type,
+                                "file_size": len(uploaded_file.getvalue()),
+                                "ui_source": "streamlit"
+                            }
                         )
                         
-                        # Add download button
-                        st.download_button(
-                            label="Download Script",
-                            data=data['script'],
-                            file_name=f"{template_type.lower().replace('/', '_')}_script.txt",
-                            mime="text/plain"
-                        )
-                        
-                        # Add helpful tips based on template type
-                        if template_type == "ATS/HR Resume":
-                            st.info(
-                                "💡 Tip: This script is optimized for HR and recruitment "
-                                "audiences, focusing on skills and achievements."
-                            )
-                        else:
-                            st.info(
-                                "💡 Tip: This script is tailored for industry management "
-                                "roles, emphasizing leadership experience and strategic "
-                                "accomplishments."
-                            )
                     else:
-                        st.error(f"Error: {response.json()['detail']}")
-                
+                        error_msg = response.json().get("detail", "Unknown error occurred")
+                        st.error(f"Error: {error_msg}")
+                        log_text("UI", "error", error_msg)
+                        
                 except Exception as e:
-                    st.error(f"Error connecting to the API: {str(e)}")
+                    st.error(f"Error: {str(e)}")
+                    log_text("UI", "error", str(e))
+                    
+    except Exception as e:
+        st.error(f"Application Error: {str(e)}")
+        log_text("UI", "error", str(e))
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    finally:
+        # Stop resource monitoring when the app stops
+        resource_monitor.stop_monitoring()

@@ -12,3 +12,7 @@ python-multipart  # For handling form data in FastAPI
 prometheus_client
 wheel
 clearml>=1.11.0
+psutil>=5.9.0
+numpy>=1.21.0
+pandas>=1.3.0
+matplotlib>=3.4.0

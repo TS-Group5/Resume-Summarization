@@ -18,6 +18,10 @@ setup(
         "prometheus_client",  # For Prometheus metrics
         "python-multipart",  # For handling form data in FastAPI
         "clearml>=1.11.0",  # For ClearML
+        "psutil>=5.9.0",  # For system resource monitoring
+        "numpy>=1.21.0",  # For numerical operations
+        "pandas>=1.3.0",  # For data manipulation
+        "matplotlib>=3.4.0",  # For data visualization
     ],
     extras_require={
         "dev": [
