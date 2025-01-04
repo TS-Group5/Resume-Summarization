@@ -83,7 +83,7 @@ cd /path/to/Resume-Summarization
 ## Project Structure
 
 ```
-tv3/
+Resume-Summarization/
 ├── src/
 │   ├── api/                 # FastAPI backend
 │   │   └── app.py          # Main API endpoints
