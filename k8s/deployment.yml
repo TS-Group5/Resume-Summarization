@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: resume-video-generator
+  labels:
+    app: resume-video-generator
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: resume-video-generator
+  template:
+    metadata:
+      labels:
+        app: resume-video-generator
+    spec:
+      containers:
+      - name: resume-video-generator
+        image: ${DOCKER_HUB_USERNAME}/resume-video-generator:latest
+        ports:
+        - containerPort: 8000  # FastAPI
+          name: api
+        - containerPort: 8501  # Streamlit
+          name: ui
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        env:
+        - name: MODEL_PATH
+          value: "/app/models"
+        - name: API_URL
+          value: "http://localhost:8000"  # Internal API URL
+        volumeMounts:
+        - name: model-storage
+          mountPath: /app/models
+        - name: template-storage
+          mountPath: /app/src/templates
+        readinessProbe:
+          httpGet:
+            path: /docs  # FastAPI docs endpoint
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /docs
+            port: 8000
+          initialDelaySeconds: 60
+          periodSeconds: 20
+      volumes:
+      - name: model-storage
+        persistentVolumeClaim:
+          claimName: model-storage-pvc
+      - name: template-storage
+        persistentVolumeClaim:
+          claimName: template-storage-pvc

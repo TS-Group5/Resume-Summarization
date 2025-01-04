@@ -1,83 +1,137 @@
-# Resume Summary Generator
+# Resume Video Script Generator
 
-A modern AI-powered application that generates professional summaries from resumes using various AI models.
+A powerful tool that generates engaging video scripts from resume templates using GPT-2 and modern web technologies. The system supports multiple industries including IT, Restaurant Management, and Healthcare.
 
 ## Features
 
-- 📄 Multiple resume template options
-- 🤖 Support for different AI models (T5, GPT-2, BART)
-- 🎨 Modern dark-themed UI
-- 📊 Detailed resume parsing and analysis
-- 💡 Professional summary generation
-- ⚡ Real-time processing
+- **Multi-Industry Support**
+  - IT/Software Development: Optimized for technical roles and skills
+  - Restaurant Management: Tailored for hospitality and food service
+  - Healthcare: Specialized for healthcare professionals
 
-## Prerequisites
+- **Intelligent Script Generation**
+  - Industry-specific templates and prompts
+  - Dynamic content adaptation based on skills and experience
+  - Professional tone and structure
 
-- Python 3.8 or higher
-- pip (Python package installer)
+- **Modern Web Interface**
+  - Streamlit-based UI for easy interaction
+  - Real-time script generation
+  - User-friendly file upload
 
-## Installation
+- **Robust Backend**
+  - FastAPI for high-performance API
+  - GPT-2 model with custom prompt engineering
+  - Specialized resume parsers
+
+## Quick Start
+
+### Prerequisites
+- Python 3.11+
+- Virtual environment (recommended)
+
+### Installation
 
 1. Clone the repository:
 ```bash
-git clone <repository-url>
+git clone https://github.com/yourusername/tv3.git
 cd tv3
 ```
 
-2. Create a virtual environment (recommended):
+2. Create and activate virtual environment:
 ```bash
-python -m venv venv
-source venv/bin/activate  # On Windows, use: venv\Scripts\activate
+python -m venv env
+source env/bin/activate  # On Windows: .\env\Scripts\activate
 ```
 
-3. Install the required packages:
+3. Install dependencies:
 ```bash
 pip install -r requirements.txt
 ```
 
-## Usage
+### Running the Application
 
-1. Start the application:
+1. Start the FastAPI backend:
 ```bash
-streamlit run src/app.py
+# Terminal 1
+cd /path/to/tv3
+./env/bin/python src/api/app.py
 ```
 
-2. Access the application in your web browser (typically http://localhost:8501)
+2. Start the Streamlit frontend:
+```bash
+# Terminal 2
+cd /path/to/tv3
+./env/bin/streamlit run src/ui/streamlit_app.py
+```
 
-3. Follow the steps in the application:
-   - Choose a resume template
-   - Download and fill out the template
-   - Upload your completed resume
-   - Select an AI model
-   - Generate your professional summary
+3. Access the application:
+- Frontend UI: http://localhost:8501
+- API Documentation: http://localhost:8000/docs
 
-## Available Models
+### Using the Application
 
-- **T5**: Fast and efficient, good for concise summaries
-- **GPT-2**: More detailed and natural language generation
-- **BART**: Balanced approach with good comprehension
+1. Open the Streamlit UI in your browser
+2. Upload a resume file (supported format: .docx, .txt)
+3. Select the industry type:
+   - IT/Software
+   - Restaurant Management
+   - Healthcare
+4. Click "Generate Script" to create the video script
+5. View and use the generated script
 
 ## Project Structure
 
 ```
 tv3/
 ├── src/
-│   ├── app.py              # Main Streamlit application
-│   ├── generate_summary.py # Summary generation logic
-│   └── templates/          # Resume templates
-├── requirements.txt        # Project dependencies
-└── README.md              # Project documentation
+│   ├── api/                 # FastAPI backend
+│   │   └── app.py          # Main API endpoints
+│   ├── models/             # ML models
+│   │   └── generic_gpt2_model.py  # GPT-2 implementation
+│   ├── parsers/            # Resume parsers
+│   │   ├── resume_parser.py
+│   │   ├── ats_parser.py
+│   │   └── industry_manager_parser.py
+│   ├── templates/          # Resume templates
+│   └── ui/                 # Streamlit frontend
+│       └── streamlit_app.py
+├── docs/                   # Documentation
+└── requirements.txt        # Python dependencies
 ```
 
-## Troubleshooting
+## Implementation Details
 
-- If you encounter any model loading issues, ensure you have sufficient disk space and RAM
-- For template download issues, verify your internet connection
-- If the UI appears broken, try clearing your browser cache
+### GPT-2 Model Configuration
+- Base model: GPT-2
+- Custom prompt engineering for industry-specific content
+- Parameters:
+  - Max length: 800
+  - Min length: 300
+  - Temperature: 0.7
+  - Top-p: 0.9
+  - Top-k: 50
+  - Repetition penalty: 1.2
+
+### Script Generation Process
+1. Resume parsing and data extraction
+2. Industry detection based on role and skills
+3. Template selection and prompt construction
+4. GPT-2 text generation
+5. Post-processing and validation
+
+### Supported Industries
+Each industry has specialized templates for:
+- Introduction and background
+- Professional experience
+- Skills and expertise
+- Achievements
+- Goals and aspirations
+- Contact information
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions are welcome! Please read our contributing guidelines and submit pull requests to our repository.
 
 ## License
 

@@ -1,3 +1,1 @@
-"""
-Test package for the professional summary generator.
-"""
+"""Test package for Resume Video Script Generator."""

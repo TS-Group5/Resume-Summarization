@@ -9,13 +9,13 @@ streamlit-extras==0.3.5
 extra-streamlit-components==0.1.60
 st-annotated-text==4.0.1
 protobuf==4.25.1
-numpy==1.24.3
+numpy>=1.21.0
 pandas==2.0.3
 tqdm==4.66.1
 requests==2.31.0
 pillow==10.1.0
 tokenizers==0.15.0
-scikit-learn==1.3.2
+scikit-learn>=1.0.2
 nltk==3.8.1
 python-dotenv==1.0.0
 accelerate==0.25.0
@@ -27,3 +27,15 @@ bitsandbytes==0.41.2
 safetensors==0.4.1
 einops==0.7.0
 altair<5
+rouge-score>=0.1.2
+deepeval>=0.6.0
+textblob>=0.17.1
+sentence-transformers>=2.2.2  # For RAG embeddings
+faiss-cpu>=1.7.4  # For efficient similarity search
+langchain>=0.0.350  # For RAG and chain-of-thought components
+chromadb>=0.4.18  # For vector storage
+fastapi>=0.105.0  # For REST API
+uvicorn>=0.24.0  # ASGI server for FastAPI
+python-multipart>=0.0.6  # For handling file uploads
+prometheus_client
+wheel

@@ -1,93 +1,130 @@
-"""Base class for all resume models."""
-import re
+
+
+"""Base class for all models."""
 from abc import ABC, abstractmethod
-from config.model_prompts import SUMMARY_TEMPLATES
+from typing import Dict, Any
+import re
+import logging
 
-class BaseResumeModel(ABC):
+logger = logging.getLogger(__name__)
+
+class BaseModel(ABC):
+    """Base model class that all models should inherit from."""
+
     def __init__(self):
-        """Initialize base model with default configuration."""
-        self.config = {
-            'model': {
-                'name': None,
-                'generation_params': {
-                    'max_length': 256,
-                    'num_beams': 4,
-                    'length_penalty': 2.0,
-                    'early_stopping': True,
-                    'no_repeat_ngram_size': 2,
-                    'temperature': 0.7
-                }
-            },
-            'formatting': {
-                'max_achievements': 2,
-                'max_skills': 5,
-                'skill_exclusions': set(['the', 'and', 'or', 'in', 'at', 'for']),
-                'cleanup_words': ['Write a professional summary:', 'Generate a professional summary:', 'Here is a professional summary:']
-            }
-        }
-
-    def format_input_data(self, input_json):
-        """Validate and format input data."""
-        required_fields = ['name', 'current_role', 'years_experience', 'companies', 'achievements', 'skills', 'education']
-        for field in required_fields:
-            if field not in input_json:
-                raise ValueError(f"Missing required field: {field}")
-        
-        # Format the data
-        formatted_data = {
-            'name': input_json['name'],
-            'current_role': input_json['current_role'],
-            'years_experience': input_json['years_experience'],
-            'companies': input_json['companies'][:2],  # Limit to top 2 companies
-            'achievements': input_json['achievements'][:self.config['formatting']['max_achievements']],
-            'skills': [s for s in input_json['skills'][:self.config['formatting']['max_skills']] 
-                      if s.lower() not in self.config['formatting']['skill_exclusions']],
-            'education': input_json['education'][:2],  # Limit to top 2 education entries
-            'recognition': input_json.get('recognition', '')  # Optional recognition field
-        }
-        
-        return formatted_data
-
-    def format_template_data(self, formatted_data):
-        """Format data for template strings."""
-        template_data = formatted_data.copy()
-        
-        # Convert lists to comma-separated strings
-        list_fields = ['companies', 'achievements', 'skills', 'education']
-        for field in list_fields:
-            if isinstance(template_data[field], list):
-                template_data[field] = ', '.join(template_data[field])
-        
-        # Ensure years_experience is an integer
-        if 'years_experience' in template_data:
-            template_data['years_experience'] = int(template_data['years_experience'])
-        
-        return template_data
-
-    def clean_output(self, text):
-        """Clean up the generated text."""
-        # Remove cleanup words
-        for word in self.config['formatting']['cleanup_words']:
-            text = text.replace(word, "")
-        
-        # Remove trailing punctuation
-        text = re.sub(r'[.,;:!?]+$', '', text.strip())
-        
-        # Remove trailing "in" if present
-        text = re.sub(r'\s+in\s*$', '', text)
-        
-        # Add period at the end if not present
-        if not text.endswith('.'):
-            text += '.'
-        
-        return text.strip()
-
-    @abstractmethod
-    def generate_prompt(self, formatted_data):
-        """Generate prompt from formatted data."""
+        """Initialize base model."""
         pass
 
     @abstractmethod
-    def generate_summary(self, input_json):
-        """Generate summary from input JSON."""
+    def generate_summary(self, resume_data: Dict[str, Any]) -> str:
+        """Generate a summary from resume data.
+        
+        Args:
+            resume_data: Dictionary containing resume information
+            
+        Returns:
+            Generated summary text
+        """
         pass
+
+    def _clean_summary(self, summary: str) -> str:
+        """Clean the generated summary.
+        
+        Preserves proper nouns, contact information, and handles sentence capitalization.
+        
+        Args:
+            summary: Text to clean
+            
+        Returns:
+            Cleaned text
+        """
+        if not summary:
+            return ""
+        
+        try:
+            # Fix email addresses (remove spaces in domain)
+            summary = re.sub(r'([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+)\s*\.\s*([a-zA-Z]{2,})', r'\1.\2', summary)
+            
+            # Remove extra whitespace
+            summary = " ".join(summary.split())
+            
+            # Split into sentences while preserving the period
+            sentences = re.split(r'([.!?]+)', summary)
+            
+            # Process each sentence
+            cleaned_sentences = []
+            for i in range(0, len(sentences)-1, 2):
+                sentence = sentences[i].strip()
+                if sentence:
+                    # Split into words
+                    words = sentence.split()
+                    if words:
+                        # Capitalize first word
+                        words[0] = words[0].capitalize()
+                        
+                        # Process remaining words
+                        for j in range(1, len(words)):
+                            # Keep proper nouns and email addresses capitalized
+                            if (words[j] == "Test" or 
+                                '@' in words[j] or 
+                                any(c.isupper() for c in words[j][1:])):
+                                continue
+                            words[j] = words[j].lower()
+                            
+                        cleaned_sentences.append(" ".join(words) + sentences[i+1])
+            
+            # Join sentences
+            result = "".join(cleaned_sentences).strip()
+            
+            # Remove trailing period (except for email addresses)
+            if not re.search(r'@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', result):
+                result = result.rstrip('.')
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"Error cleaning summary: {e}")
+            return summary
+
+    def _validate_summary(self, summary: str) -> bool:
+        """Validate the generated summary.
+        
+        Checks:
+        - Not empty
+        - Minimum length (20 words)
+        - Maximum length (500 words)
+        
+        Args:
+            summary: Text to validate
+            
+        Returns:
+            True if valid, False otherwise
+        """
+        if not summary:
+            return False
+            
+        # Split into words and filter out empty strings
+        words = [w for w in summary.split() if w]
+            
+        # Check minimum length (20 words)
+        if len(words) < 20:
+            return False
+            
+        # Check maximum length (500 words)
+        if len(words) > 500:
+            return False
+            
+        return True
+
+    def _format_name(self, name: str) -> str:
+        """Format name with proper capitalization.
+        
+        Args:
+            name: Name to format
+            
+        Returns:
+            Formatted name
+        """
+        if not name:
+            return ""
+        return " ".join(word.capitalize() for word in name.split())

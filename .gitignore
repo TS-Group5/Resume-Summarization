@@ -66,3 +66,6 @@ logs/
 *.bin
 *.csv
 *.json
+.model_cache/
+.model_cache/*.*
+.model_cache/.locks/*.*
