@@ -5,3 +5,4 @@ pytest-xdist==3.5.0
 pytest-sugar==0.9.7
 pytest-clarity==1.0.1
 coverage==7.3.2
+python-docx==0.8.11
