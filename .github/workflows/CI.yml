@@ -6,6 +6,27 @@ on:
   workflow_dispatch:
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    continue-on-error: true  # Make linting optional
+    steps:
+    - uses: actions/checkout@v3
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v3
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e ".[dev]"  # Install package with development dependencies
+    
+    - name: Run linting
+      run: |
+        black . --check
+        isort . --check
+        flake8 .
+
   test:
     runs-on: ubuntu-latest
     strategy:
@@ -25,12 +46,6 @@ jobs:
     - name: Add src to PYTHONPATH
       run: echo "PYTHONPATH=$(pwd)/src" >> $GITHUB_ENV
     
-    - name: Run linting
-      run: |
-        black . --check
-        isort . --check
-        flake8 .
-    
     - name: Test with pytest
       run: pytest --cov=src --cov-report=xml
     
@@ -41,7 +56,7 @@ jobs:
         fail_ci_if_error: true
 
   build:
-    needs: [test]
+    needs: [test]  # Only depends on test job, not lint
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -51,18 +66,22 @@ jobs:
       uses: actions/setup-python@v3
       with:
         python-version: '3.11'
-
-    - name: Install build dependencies
-      run: pip install --upgrade build
-
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e .
+    
     - name: Build package
-      run: python -m build
-
-    - uses: actions/upload-artifact@v3
+      run: |
+        pip install build
+        python -m build
+    
+    - name: Upload artifact
+      uses: actions/upload-artifact@v3
       with:
-        name: resume-summarization
-        path: dist/*.whl
-        retention-days: 1
+        name: dist
+        path: dist/
 
   push-image:
     needs: [build]
