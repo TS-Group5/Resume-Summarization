@@ -15,7 +15,7 @@ jobs:
       - name: Pull Docker Image
         env: 
           DOCKER_USER: ${{ secrets.DOCKER_USER_NAME }}
-        run: sudo docker pull $DOCKER_USER/resume-summarization:latestt
+        run: sudo docker pull $DOCKER_USER/resume-summarization:latest
     
       - name: Delete Old Docker Container
         run: sudo docker rm -f resume-summarization-api-container || true
