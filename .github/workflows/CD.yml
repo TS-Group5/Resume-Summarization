@@ -15,12 +15,12 @@ jobs:
       - name: Pull Docker Image
         env: 
           DOCKER_USER: ${{ secrets.DOCKER_USER_NAME }}
-        run: sudo docker pull $DOCKER_USER/bikeshare-api:latest
+        run: sudo docker pull $DOCKER_USER/resume-summarization:latestt
     
       - name: Delete Old Docker Container
-        run: sudo docker rm -f bikeshare-api-container || true
+        run: sudo docker rm -f resume-summarization-api-container || true
     
       - name: Run Docker Container
         env: 
           DOCKER_USER: ${{ secrets.DOCKER_USER_NAME }}
-        run: sudo docker run -it -d -p 8001:8001 --name bikeshare-api-container $DOCKER_USER/bikeshare-api:latest
+        run: sudo docker run -it -d -p 8001:8001 --name resume-summarization-api-container $DOCKER_USER/resume-summarization:latest
