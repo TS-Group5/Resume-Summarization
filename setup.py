@@ -1,4 +1,4 @@
-from setuptools import find_packages, setup
+from setuptools import setup, find_packages
 
 setup(
     name="resume-summarization",
@@ -30,6 +30,7 @@ setup(
         ],
     },
     python_requires=">=3.8",
+
     # Add entry points for command line scripts
     entry_points={
         "console_scripts": [
