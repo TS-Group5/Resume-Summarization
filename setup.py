@@ -17,6 +17,7 @@ setup(
         "uvicorn",  # For running the FastAPI server
         "prometheus_client",  # For Prometheus metrics
         "python-multipart",  # For handling form data in FastAPI
+        "clearml>=1.11.0",  # For ClearML
     ],
     extras_require={
         "dev": [

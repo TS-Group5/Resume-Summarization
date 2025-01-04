@@ -8,6 +8,7 @@ import yaml
 from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST, REGISTRY
 from fastapi.responses import Response
 import time
+from ..utils.clearml_utils import init_clearml_task, log_metric, log_text
 
 # Load configuration
 with open("config.yaml", "r") as f:
@@ -19,6 +20,9 @@ from parsers.industry_manager_parser import IndustryManagerParser
 
 # Initialize model
 gpt2_model = GenericGPT2Model()
+
+# Initialize ClearML task for API monitoring
+api_task = init_clearml_task(task_name="api-monitoring", task_type="data_processing")
 
 # Prometheus metrics - use a try-except to handle duplicate registration
 try:
@@ -113,6 +117,12 @@ async def generate_script(
         if PROCESSING_TIME:
             PROCESSING_TIME.labels(template_type=template_label).observe(time.time() - start_time)
         
+        # Log API metrics
+        processing_time = time.time() - start_time
+        log_metric("API", "processing_time", processing_time)
+        log_metric("API", "file_size", len(content))
+        log_text("API", "template_type", template_type)
+        
         return ScriptResponse(script=script, template_type=template_label)
     
     except Exception as e:
@@ -123,6 +133,8 @@ async def generate_script(
                 template_type=template_type.lower(),
                 error_type=error_type
             ).inc()
+        # Log error
+        log_text("API", "error", str(e))
         raise HTTPException(status_code=500, detail=str(e))
     
     finally:

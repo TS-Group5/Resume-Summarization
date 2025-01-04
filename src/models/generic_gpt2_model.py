@@ -4,6 +4,7 @@ from transformers import pipeline, AutoModelForCausalLM, AutoTokenizer
 from .base_model import BaseModel
 import re
 import torch
+from ..utils.clearml_utils import init_clearml_task, log_model_parameters, log_metric, log_text
 
 logger = logging.getLogger(__name__)
 
@@ -17,9 +18,21 @@ class GenericGPT2Model(BaseModel):
             import torch
             from transformers import AutoModelForCausalLM, AutoTokenizer
             
+            # Initialize ClearML task
+            self.task = init_clearml_task(task_name="gpt2-inference")
+            
             # Use base GPT2 for more stable generation
             logger.info("Loading model and tokenizer...")
             model_name = "gpt2"  # Base GPT2 model
+            
+            # Log model parameters
+            model_params = {
+                "model_name": model_name,
+                "max_length": 1024,
+                "temperature": 0.7,
+                "top_p": 0.9
+            }
+            log_model_parameters(model_params)
             
             # Determine device (GPU/CPU)
             device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -70,6 +83,9 @@ class GenericGPT2Model(BaseModel):
             
     def generate_summary(self, resume_data: Dict[str, Any]) -> str:
         """Generate a video script summary from resume data."""
+        import time
+        start_time = time.time()
+        
         try:
             logger.info("Resume data received:")
             logger.info("-" * 40)
@@ -232,10 +248,19 @@ class GenericGPT2Model(BaseModel):
             # Clean up the script
             script = self._post_process_script(script, name, email, phone)
             
+            # Log generation metrics
+            generation_time = time.time() - start_time
+            log_metric("Generation", "time_seconds", generation_time)
+            log_metric("Generation", "summary_length", len(script))
+            
+            # Log sample output
+            log_text("Samples", "generated_summary", script[:500])
+            
             return script
             
         except Exception as e:
             logger.error(f"Error generating summary: {e}")
+            log_text("Errors", "generation_error", str(e))
             logger.warning("Using base template due to error")
             return base_script
             
