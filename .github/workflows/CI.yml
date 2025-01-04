@@ -16,7 +16,7 @@ jobs:
       uses: actions/setup-python@v3
       with:
         python-version: '3.11'
-        
+
     - name: Install dependencies
       run: pip install -r requirements-test.txt
       
@@ -44,7 +44,7 @@ jobs:
       run: python -m build
     - uses: actions/upload-artifact@v3
       with:
-        name: my-build-package
+        name: resume-summarization
         path: dist/*.whl
         retention-days: 1
 
