@@ -18,7 +18,17 @@ setup(
         "prometheus_client",  # For Prometheus metrics
         "python-multipart",  # For handling form data in FastAPI
     ],
-    
+    extras_require={
+        "dev": [
+            "pytest>=7.0.0",
+            "pytest-cov>=4.0.0",  # For coverage reporting
+            "pytest-asyncio>=0.21.0",  # For testing async functions
+            "httpx>=0.24.0",  # For testing FastAPI
+            "black>=23.0.0",  # For code formatting
+            "isort>=5.12.0",  # For import sorting
+            "flake8>=6.0.0",  # For linting
+        ],
+    },
     python_requires=">=3.8",
 
     # Add entry points for command line scripts

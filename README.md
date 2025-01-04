@@ -68,7 +68,11 @@ source .venv/bin/activate  # On Windows: .\.venv\Scripts\activate
 
 3. Install dependencies:
 ```bash
+# For basic installation
 pip install -e .
+
+# For development (includes testing and linting tools)
+pip install -e ".[dev]"
 ```
 
 4. Start the FastAPI backend:
@@ -105,6 +109,38 @@ The application uses a `config.yaml` file for configuration. Key settings includ
 - API endpoints
 - Model parameters
 - File configurations
+
+## Development
+
+### Running Tests
+```bash
+# Run all tests
+pytest
+
+# Run tests with coverage report
+pytest --cov=src
+
+# Run specific test file
+pytest tests/test_specific_file.py
+```
+
+### Code Quality
+The project includes several tools for maintaining code quality:
+- `black`: Code formatting
+- `isort`: Import sorting
+- `flake8`: Code linting
+
+Run them using:
+```bash
+# Format code
+black src tests
+
+# Sort imports
+isort src tests
+
+# Check code quality
+flake8 src tests
+```
 
 ## Project Structure
 
