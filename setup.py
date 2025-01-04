@@ -10,8 +10,13 @@ setup(
         "torch",
         "streamlit>=1.24.0",
         "python-docx>=0.8.11",
-        "rouge_score",  # Added missing dependency
-        "pyyaml",      # Added missing dependency
+        "rouge_score",
+        "pyyaml",
+        "pipeline",
+        "fastapi",  # For API endpoints
+        "uvicorn",  # For running the FastAPI server
+        "prometheus_client",  # For Prometheus metrics
+        "python-multipart",  # For handling form data in FastAPI
     ],
     
     python_requires=">=3.8",

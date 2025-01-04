@@ -15,14 +15,11 @@ RUN apt-get update && apt-get install -y \
     python3-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements first for better caching
-COPY requirements.txt .
-
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
-
 # Copy the project code
 COPY . .
+
+# Install the package in development mode
+RUN pip install -e .
 
 # Create non-root user
 RUN useradd -m appuser && \
@@ -36,12 +33,12 @@ ENV PYTHONPATH=/app
 RUN mkdir -p src/templates src/models src/parsers
 
 # Expose ports for FastAPI and Streamlit
-EXPOSE 8000 8501
+EXPOSE 8080 8502
 
 # Create a script to run both services
 RUN echo '#!/bin/bash\n\
-uvicorn src.api.app:app --host 0.0.0.0 --port 8000 & \n\
-streamlit run src/ui/streamlit_app.py --server.port 8501 --server.address 0.0.0.0\n\
+uvicorn src.api.app:app --host 0.0.0.0 --port 8080 & \n\
+streamlit run src/ui/streamlit_app.py --server.port 8502 --server.address 0.0.0.0\n\
 wait' > /app/start.sh && chmod +x /app/start.sh
 
 # Set the entrypoint
