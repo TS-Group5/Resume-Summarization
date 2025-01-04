@@ -36,9 +36,7 @@ jobs:
       with:
         python-version: '3.11'
     - uses: actions/download-artifact@v3
-      with:
-        name: my-trained-pipeline
-        path: bikeshare_model/trained_models
+
     - name: Install dependencies
       run: pip install --upgrade build
     - name: Build package
