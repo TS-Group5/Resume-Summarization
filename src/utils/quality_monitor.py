@@ -38,6 +38,15 @@ class QualityMonitor:
                 'rouge1', 'rouge2', 'rougeL', 'error'
             ])
             
+            # Initialize request tracking metrics
+            self.request_count = 0
+            self.error_count = 0
+            self.start_time = None
+            self.iteration = 0
+            
+            # Initialize latest metrics
+            self.latest_metrics = {}
+            
             logger.info("Quality monitor initialized successfully")
             
         except Exception as e:
@@ -127,6 +136,14 @@ class QualityMonitor:
             })
             self.metrics_df = pd.concat([self.metrics_df, new_row], ignore_index=True)
             
+            # Update latest metrics
+            self.latest_metrics.update({
+                "generation_time": generation_time,
+                "rouge1_f1": rouge_metrics['rouge1_f1'],
+                "rouge2_f1": rouge_metrics['rouge2_f1'],
+                "rougeL_f1": rouge_metrics['rougeL_f1']
+            })
+            
             return rouge_metrics
             
         except Exception as e:
@@ -153,6 +170,71 @@ class QualityMonitor:
             
             return {}
     
+    def track_request(self, template_type: str = None):
+        """Track a new request."""
+        self.request_count += 1
+        self.iteration += 1
+        self.start_time = time.time()
+        if self.logger:
+            self.logger.report_scalar(
+                "requests/total",
+                "count",
+                self.request_count,
+                iteration=self.iteration
+            )
+            if template_type:
+                self.logger.report_text(
+                    f"Processing request with template: {template_type}",
+                    level=logging.INFO
+                )
+                
+    def track_success(self, processing_time: float = None):
+        """Track a successful request."""
+        if processing_time is None and self.start_time:
+            processing_time = time.time() - self.start_time
+            
+        # Update latest metrics
+        self.latest_metrics.update({
+            "processing_time": processing_time,
+            "success_rate": (self.request_count - self.error_count) / max(self.request_count, 1)
+        })
+            
+        if self.logger:
+            self.logger.report_scalar(
+                "requests/processing_time",
+                "seconds",
+                processing_time,
+                iteration=self.iteration
+            )
+            self.logger.report_scalar(
+                "requests/success_rate",
+                "rate",
+                self.latest_metrics["success_rate"],
+                iteration=self.iteration
+            )
+            
+    def track_error(self, error_message: str):
+        """Track a request error."""
+        self.error_count += 1
+        
+        # Update latest metrics
+        self.latest_metrics.update({
+            "error_count": self.error_count,
+            "success_rate": (self.request_count - self.error_count) / max(self.request_count, 1)
+        })
+        
+        if self.logger:
+            self.logger.report_scalar(
+                "requests/errors",
+                "count",
+                self.error_count,
+                iteration=self.iteration
+            )
+            self.logger.report_text(
+                f"Request Error: {error_message}",
+                level=logging.ERROR
+            )
+            
     def check_quality(self, generated_script: str, thresholds: Dict[str, float]) -> Dict[str, float]:
         """Check quality of generated script."""
         try:
@@ -173,7 +255,8 @@ class QualityMonitor:
                     self.task.get_logger().report_scalar(
                         "quality_metrics", 
                         metric_name, 
-                        value
+                        value,
+                        iteration=self.iteration
                     )
             
             return metrics
@@ -246,19 +329,26 @@ class QualityMonitor:
                             self.logger.report_scalar(
                                 f"{category} Summary",
                                 f"{metric_name}_{stat}",
-                                value=value
+                                value=value,
+                                iteration=self.iteration
                             )
                     else:
                         self.logger.report_scalar(
                             "Summary Metrics",
                             f"{category}_{metric_name}",
-                            value=values
+                            value=values,
+                            iteration=self.iteration
                         )
             else:
                 self.logger.report_scalar(
                     "Summary Metrics",
                     category,
-                    value=metrics
+                    value=metrics,
+                    iteration=self.iteration
                 )
         
         return summary
+
+    def get_latest_metrics(self) -> Dict[str, float]:
+        """Get the latest metrics recorded."""
+        return self.latest_metrics.copy()  # Return a copy to prevent external modification

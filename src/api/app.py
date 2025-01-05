@@ -147,53 +147,100 @@ async def metrics():
     """Endpoint for Prometheus metrics."""
     return Response(generate_latest(REGISTRY), media_type=CONTENT_TYPE_LATEST)
 
-@app.post("/generate", response_model=ScriptResponse)
+@app.post("/generate-script", response_model=ScriptResponse)
 async def generate_script(
     file: UploadFile = File(...),
     template_type: str = Form(...),
     target_language: Optional[str] = Form(None)
 ):
+    """Generate a video script from a resume."""
     try:
-        # Read the file content
-        content = await file.read()
-        temp_file_path = f"temp_{file.filename}"
+        start_time = time.time()
         
-        try:
-            # Save the content to a temporary file
-            with open(temp_file_path, "wb") as temp_file:
-                temp_file.write(content)
-            
-            # Process the resume
-            parser = get_parser(template_type, temp_file_path)
-            resume_data = parser.parse()
-            start_time = time.time()
-            script = gpt2_model.generate_summary(resume_data)
-            generation_time = time.time() - start_time
-            
-            # Log metrics
-            if quality_monitor:
-                quality_monitor.track_generation_quality(
-                    generated_text=script,
-                    reference_text=gpt2_model._prepare_input_text(resume_data),
-                    generation_time=generation_time,
-                    metadata={"template_type": template_type}
-                )
-            
-            return {
-                "script": script,
-                "template_type": template_type,
-                "target_language": target_language
-            }
-            
-        finally:
-            # Clean up temporary file
-            if os.path.exists(temp_file_path):
-                os.remove(temp_file_path)
-                
-    except Exception as e:
-        logger.error(f"Error processing request: {e}")
+        # Track request start
         if quality_monitor:
-            quality_monitor.log_error(str(e))
+            quality_monitor.track_request(template_type)
+        
+        # Create temporary file
+        temp_file = f"/tmp/{file.filename}"
+        with open(temp_file, "wb") as f:
+            content = await file.read()
+            f.write(content)
+        
+        # Initialize pipeline configuration
+        pipeline_config = {
+            "template_type": template_type,
+            "target_language": target_language,
+            "input_file": temp_file
+        }
+        
+        # Log pipeline start
+        pipeline.report_manager.log_pipeline_start(pipeline_config)
+        
+        # Process the resume
+        result = await process_resume(temp_file, template_type, target_language)
+        
+        # Calculate processing time
+        processing_time = time.time() - start_time
+        
+        # Prepare performance metrics
+        performance_metrics = {
+            "processing_time": processing_time,
+            "input_size": len(content),
+            "output_size": len(result["script"]),
+            "template_type": template_type,
+            "target_language": target_language or "default"
+        }
+        
+        # Publish performance report
+        pipeline.report_manager.publish_performance_report(performance_metrics)
+        
+        # Track success and publish quality report if metrics available
+        if quality_monitor:
+            quality_monitor.track_success(processing_time)
+            quality_metrics = quality_monitor.get_latest_metrics()
+            if quality_metrics:
+                pipeline.report_manager.publish_quality_report(
+                    quality_metrics,
+                    thresholds={
+                        "rouge1_f1": 0.4,
+                        "rouge2_f1": 0.2,
+                        "rougeL_f1": 0.3
+                    }
+                )
+        
+        # Log pipeline completion and publish summary
+        pipeline.report_manager.log_pipeline_completion(
+            status="success",
+            summary=performance_metrics
+        )
+        pipeline.report_manager.publish_summary_report()
+        
+        return ScriptResponse(
+            script=result["script"],
+            template_type=template_type
+        )
+        
+    except Exception as e:
+        error_info = {
+            "type": type(e).__name__,
+            "message": str(e),
+            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "template_type": template_type,
+            "target_language": target_language
+        }
+        
+        # Track error and publish error report
+        if quality_monitor:
+            quality_monitor.track_error(str(e))
+        if pipeline and pipeline.report_manager:
+            pipeline.report_manager.publish_error_report([error_info])
+            pipeline.report_manager.log_pipeline_completion(
+                status="error",
+                summary={"error": str(e)}
+            )
+            
+        logger.error(f"Error processing request: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 # Prometheus metrics - use a try-except to handle duplicate registration
@@ -232,6 +279,13 @@ def get_parser(template_type: str, file_path: str):
         return IndustryManagerParser(file_path)
     else:
         raise ValueError(f"Unsupported template type: {template_type}")
+
+async def process_resume(file_path: str, template_type: str, target_language: str):
+    """Process the resume and generate a script."""
+    parser = get_parser(template_type, file_path)
+    resume_data = parser.parse()
+    script = gpt2_model.generate_summary(resume_data)
+    return {"script": script}
 
 if __name__ == "__main__":
     # Configure logging

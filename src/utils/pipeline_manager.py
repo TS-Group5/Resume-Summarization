@@ -23,12 +23,13 @@ class ResumePipeline:
         self.pipeline_name = pipeline_name
         self.version = version
         self.queue = queue
+        self.task = Task.current_task()
         
         # Initialize the pipeline only if not already running
         self._initialize_pipeline()
         
-        # Initialize report manager
-        self.report_manager = ReportManager(Task.current_task())
+        # Initialize report manager with current task
+        self.report_manager = ReportManager(self.task)
         
         # Set default queue
         self.pipeline.set_default_execution_queue(queue)
@@ -47,26 +48,33 @@ class ResumePipeline:
         self._create_base_tasks()
     
     def _initialize_pipeline(self):
-        """Initialize pipeline with optimized settings."""
+        """Initialize pipeline with optimized settings and enhanced visibility."""
         self.pipeline = PipelineController(
             name=f"{self.pipeline_name}-v{self.version}",
             project=self.project_name,
             version=self.version,
-            abort_on_failure=False  # Don't abort entire pipeline on single step failure
+            abort_on_failure=False
         )
         
         # Set default queue
         self.pipeline.set_default_execution_queue(self.queue)
         
-        # Add pipeline metadata
+        # Add detailed pipeline metadata for better UI visibility
         self.pipeline.add_parameter("Args/pipeline_name", self.pipeline_name)
         self.pipeline.add_parameter("Args/version", self.version)
         self.pipeline.add_parameter("Args/project", self.project_name)
         self.pipeline.add_parameter("Args/description", "Resume Processing Pipeline")
+        self.pipeline.add_parameter("Args/created_at", time.strftime("%Y-%m-%d %H:%M:%S"))
         
         # Add pipeline input parameters
-        self.pipeline.add_parameter("Args/resume_file", "")
-        self.pipeline.add_parameter("Args/parser_type", "ats")
+        self.pipeline.add_parameter("Args/resume_file", "")  # Empty string as default
+        self.pipeline.add_parameter("Args/parser_type", "ats")  # Default parser type
+        
+        # Add parameter descriptions using task logger
+        if self.task:
+            logger = self.task.get_logger()
+            logger.report_text("Resume File: Input resume file path")
+            logger.report_text("Parser Type: Type of parser to use (ats/industry)")
         
     def _create_task(self, name: str, task_type: str, tags: list) -> Task:
         """Create a base task with common configuration."""
@@ -173,6 +181,87 @@ class ResumePipeline:
             execution_queue=self.queue,
             cache_executed_step=True
         )
+    
+    def add_parser_step_with_config(self, parser_config=None):
+        """Add parser step with enhanced logging."""
+        if not parser_config:
+            parser_config = {}
+        
+        # Create parser task with detailed configuration
+        parser_task = self._create_task(
+            name="resume-parser",
+            task_type="data_processing",
+            tags=["parser", self.version]
+        )
+        
+        # Add step with monitoring
+        self.pipeline.add_step(
+            name="parse_resume",
+            base_task_project=self.project_name,
+            base_task_name="resume-parser",
+            parameter_override={
+                "Args/config": parser_config
+            }
+        )
+        
+        # Log step addition to main task
+        if self.task:
+            self.task.get_logger().report_text(
+                "Added parser step to pipeline",
+                level=logging.INFO
+            )
+    
+    def add_generation_step_with_config(self, model_config, requirements=None):
+        """Add generation step with enhanced logging."""
+        generation_task = self._create_task(
+            name="resume-generator",
+            task_type="training",
+            tags=["generator", self.version]
+        )
+        
+        # Add step with detailed configuration
+        self.pipeline.add_step(
+            name="generate_script",
+            base_task_project=self.project_name,
+            base_task_name="resume-generator",
+            parameter_override={
+                "Args/model_config": model_config,
+                "Args/requirements": requirements or {}
+            }
+        )
+        
+        # Log step addition
+        if self.task:
+            self.task.get_logger().report_text(
+                "Added generation step to pipeline",
+                level=logging.INFO
+            )
+    
+    def add_quality_check_step_with_config(self, quality_thresholds, requirements=None):
+        """Add quality check step with enhanced logging."""
+        quality_task = self._create_task(
+            name="quality-check",
+            task_type="qc",
+            tags=["quality", self.version]
+        )
+        
+        # Add step with monitoring configuration
+        self.pipeline.add_step(
+            name="check_quality",
+            base_task_project=self.project_name,
+            base_task_name="quality-check",
+            parameter_override={
+                "Args/thresholds": quality_thresholds,
+                "Args/requirements": requirements or {}
+            }
+        )
+        
+        # Log step addition
+        if self.task:
+            self.task.get_logger().report_text(
+                "Added quality check step to pipeline",
+                level=logging.INFO
+            )
     
     def _parse_resume_step(self, parser_type: str, input_file: str) -> Dict[str, Any]:
         """Execute resume parsing step."""
