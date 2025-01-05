@@ -69,3 +69,6 @@ logs/
 .model_cache/
 .model_cache/*.*
 .model_cache/.locks/*.*
+
+# Deepeval
+.deepeval_telemtry.txt
