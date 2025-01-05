@@ -1,18 +1,19 @@
-transformers
-torch
+transformers>=4.11.3
+torch>=1.9.0
 streamlit>=1.24.0
 python-docx>=0.8.11
-rouge_score
-pyyaml
+rouge-score>=0.1.2
+pyyaml>=5.4.1
 pipeline
-fastapi  # For API endpoints
-uvicorn  # For running the FastAPI server
-prometheus_client  # For Prometheus metrics
-python-multipart  # For handling form data in FastAPI
-prometheus_client
+fastapi>=0.68.0  # For API endpoints
+uvicorn>=0.15.0  # For running the FastAPI server
+prometheus_client>=0.11.0  # For Prometheus metrics
+python-multipart>=0.0.5  # For handling form data in FastAPI
 wheel
 clearml>=1.11.0
 psutil>=5.9.0
-numpy>=1.21.0
-pandas>=1.3.0
+numpy>=1.21.2
+pandas>=1.3.3
 matplotlib>=3.4.0
+plotly>=5.3.1
+rouge-score

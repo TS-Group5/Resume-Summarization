@@ -139,22 +139,40 @@ async def generate_script(
         if PROCESSING_TIME:
             PROCESSING_TIME.labels(template_type=template_label).observe(processing_time)
         
+        # Generate reports
+        performance_metrics = {
+            "processing_time": processing_time,
+            "input_length": len(resume_data),
+            "output_length": len(script),
+            "template_type": template_type
+        }
+        report_manager.publish_performance_report(performance_metrics)
+        
+        # Generate quality report if metrics available
+        if hasattr(gpt2_model, 'quality_monitor'):
+            quality_metrics = gpt2_model.quality_monitor.get_latest_metrics()
+            thresholds = {
+                "rouge1": 0.4,
+                "rouge2": 0.2,
+                "rougeL": 0.3,
+                "summary_length": 200
+            }
+            report_manager.publish_quality_report(quality_metrics, thresholds)
+        
+        # Generate summary report
+        report_manager.publish_summary_report()
+        
         return ScriptResponse(script=script, template_type=template_label)
     
     except Exception as e:
-        # Log error
-        clearml_logger.report_text(
-            "Error",
-            str(e)
-        )
-        
-        # Record error metrics if they exist
-        if ERROR_COUNT:
-            error_type = type(e).__name__
-            ERROR_COUNT.labels(
-                template_type=template_type.lower(),
-                error_type=error_type
-            ).inc()
+        # Log error and publish error report
+        app_logger.error(f"Error generating script: {str(e)}")
+        report_manager.publish_error_report([{
+            "type": type(e).__name__,
+            "message": str(e),
+            "timestamp": time.time(),
+            "template_type": template_type
+        }])
         raise HTTPException(status_code=500, detail=str(e))
     
     finally:

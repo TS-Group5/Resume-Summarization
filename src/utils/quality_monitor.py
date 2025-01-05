@@ -270,6 +270,75 @@ class QualityMonitor:
                 'rougeL_f1': 0.0
             }
     
+    def log_generation(
+        self,
+        generated_text: str,
+        metrics: Dict[str, float],
+        error: Optional[Dict[str, Any]] = None
+    ):
+        """Log generation metrics and errors.
+        
+        Args:
+            generated_text: The generated script text
+            metrics: Dictionary of metrics about the generation
+            error: Optional error information if generation failed
+        """
+        try:
+            timestamp = time.time()
+            
+            # Update counters
+            self.total_generations += 1
+            if error:
+                self.error_count += 1
+            
+            # Create metrics record
+            record = {
+                'timestamp': timestamp,
+                'generation_time': metrics.get('generation_time', 0),
+                'summary_length': metrics.get('summary_length', 0),
+                'rouge1': metrics.get('rouge1', 0),
+                'rouge2': metrics.get('rouge2', 0),
+                'rougeL': metrics.get('rougeL', 0),
+                'error': error['type'] if error else None
+            }
+            
+            # Update metrics DataFrame
+            self.metrics_df = pd.concat([
+                self.metrics_df,
+                pd.DataFrame([record])
+            ], ignore_index=True)
+            
+            # Store latest metrics
+            self.latest_metrics = metrics
+            
+            # Log to ClearML
+            if not error:
+                for name, value in metrics.items():
+                    if isinstance(value, (int, float)):
+                        self.logger.report_scalar(
+                            title="Generation Quality",
+                            series=name,
+                            value=value,
+                            iteration=self.iteration
+                        )
+                
+                # Log sample if text is provided
+                if generated_text:
+                    self.logger.report_text(
+                        "Generation Sample",
+                        generated_text[:500]  # First 500 chars
+                    )
+            else:
+                self.logger.report_text(
+                    "Generation Error",
+                    f"{error['type']}: {error['message']}"
+                )
+            
+            self.iteration += 1
+            
+        except Exception as e:
+            logger.error(f"Error logging generation: {e}")
+    
     def log_error(self, error_message: str):
         """Log an error that occurred during processing."""
         try:
@@ -350,5 +419,9 @@ class QualityMonitor:
         return summary
 
     def get_latest_metrics(self) -> Dict[str, float]:
-        """Get the latest metrics recorded."""
-        return self.latest_metrics.copy()  # Return a copy to prevent external modification
+        """Get the most recent generation metrics.
+        
+        Returns:
+            Dictionary of latest metrics
+        """
+        return self.latest_metrics.copy()

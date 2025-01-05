@@ -8,6 +8,7 @@ import time
 from utils.clearml_utils import init_clearml_task, get_logger
 from utils.quality_monitor import QualityMonitor
 from utils.resource_monitor import ResourceMonitor
+from rouge_score import rouge_scorer
 
 # Set up Python logging
 logging.basicConfig(level=logging.INFO)
@@ -90,6 +91,76 @@ class GenericGPT2Model(BaseModel):
             self.top_p = 0.9
             self.top_k = 50
             self.repetition_penalty = 1.2
+            
+            # Load reference scripts for ROUGE calculation
+            self.reference_scripts = {
+                "ats": """
+                    1. Introduction
+                    Hi, I'm [Name], and I'd like to share my professional journey with you.
+                    
+                    2. Professional Background
+                    I have [X] years of experience in [industry/field], specializing in [key skills].
+                    
+                    3. Key Achievements
+                    Throughout my career, I've successfully [major achievement 1] and [major achievement 2].
+                    
+                    4. Skills and Expertise
+                    My core competencies include [skill 1], [skill 2], and [skill 3].
+                    
+                    5. Career Goals
+                    I'm passionate about [goal] and looking forward to [future aspiration].
+                    
+                    6. Closing
+                    Thank you for considering my profile. I'm excited about the opportunity to contribute to your team.
+                """,
+                "industry": """
+                    1. Introduction
+                    Hello everyone! I'm [Name], a seasoned professional in [industry].
+                    
+                    2. Industry Experience
+                    With [X] years in [specific sector], I've developed deep expertise in [specialization].
+                    
+                    3. Notable Projects
+                    I've led projects like [project 1] and [project 2], delivering significant results.
+                    
+                    4. Technical Skills
+                    My technical toolkit includes [technology 1], [technology 2], and [technology 3].
+                    
+                    5. Industry Impact
+                    I've contributed to [industry advancement] and [innovation].
+                    
+                    6. Vision
+                    I aim to [industry goal] while [broader impact].
+                    
+                    7. Closing
+                    I'm always open to discussing [industry topics] and exploring collaboration opportunities.
+                """,
+                "manager": """
+                    1. Introduction
+                    Greetings! I'm [Name], a results-driven manager with proven leadership experience.
+                    
+                    2. Leadership Experience
+                    I've successfully led teams of [size] across [departments/functions].
+                    
+                    3. Strategic Achievements
+                    Under my leadership, we've achieved [achievement 1] and [achievement 2].
+                    
+                    4. Management Philosophy
+                    I believe in [leadership principle] and focus on [management approach].
+                    
+                    5. Team Development
+                    I've mentored [number] professionals, leading to [team achievement].
+                    
+                    6. Business Impact
+                    My initiatives have resulted in [business outcome 1] and [business outcome 2].
+                    
+                    7. Vision
+                    I strive to [leadership goal] while [organizational impact].
+                    
+                    8. Closing
+                    I'm passionate about building high-performing teams and driving organizational success.
+                """
+            }
             
             # Log model parameters
             model_params = {
@@ -251,9 +322,11 @@ class GenericGPT2Model(BaseModel):
                 "Begin the script now:\n\n"
             )
             
+            # Track generation time
+            generation_time = time.time()
+            
             # Generate script
             model_logger.info("Generating script with prompt...")
-            generation_time = time.time()
             generated_script = self.generator(
                 prompt,
                 max_length=self.max_length,
@@ -265,8 +338,33 @@ class GenericGPT2Model(BaseModel):
                 repetition_penalty=self.repetition_penalty
             )[0]['generated_text']
             
-            # Log generation metrics
+            # Calculate ROUGE score
+            scorer = rouge_scorer.RougeScorer(['rouge1', 'rouge2', 'rougeL'], use_stemmer=True)
+            scores = scorer.score(self.reference_scripts[industry], generated_script)
+            rouge_metrics = {
+                'rouge1': scores['rouge1'].fmeasure,
+                'rouge2': scores['rouge2'].fmeasure,
+                'rougeL': scores['rougeL'].fmeasure
+            }
+            
+            # Calculate metrics
             generation_time = time.time() - generation_time
+            quality_metrics = {
+                "generation_time": generation_time,
+                "input_length": len(prompt),
+                "output_length": len(generated_script),
+                "summary_length": len(generated_script.split()),
+                **rouge_metrics  # Include all ROUGE metrics
+            }
+            
+            # Log metrics
+            self.quality_monitor.log_generation(
+                generated_script,
+                quality_metrics,
+                error=None
+            )
+            
+            # Log to ClearML
             self.clearml_logger.report_scalar(
                 title="Generation Metrics",
                 series="Generation Time",
@@ -286,15 +384,14 @@ class GenericGPT2Model(BaseModel):
                 iteration=0
             )
             
-            # Log sample of input and output
-            self.clearml_logger.report_text(
-                "Generation Sample (Input)",
-                prompt[:500]  # First 500 chars
-            )
-            self.clearml_logger.report_text(
-                "Generation Sample (Output)",
-                generated_script[:500]  # First 500 chars
-            )
+            # Log ROUGE scores
+            for metric_name, value in rouge_metrics.items():
+                self.clearml_logger.report_scalar(
+                    title="ROUGE Metrics",
+                    series=metric_name,
+                    value=value,
+                    iteration=0
+                )
             
             # Extract the script portion
             script_start = generated_script.find("1. Introduction")
@@ -318,9 +415,15 @@ class GenericGPT2Model(BaseModel):
             return script
             
         except Exception as e:
-            self.clearml_logger.report_text(
-                "Error",
-                str(e)
+            error_info = {
+                "type": type(e).__name__,
+                "message": str(e),
+                "timestamp": time.time()
+            }
+            self.quality_monitor.log_generation(
+                "",  # No script generated
+                {},  # No metrics
+                error=error_info
             )
             model_logger.error(f"Error generating summary: {e}")
             model_logger.warning("Using base template due to error")

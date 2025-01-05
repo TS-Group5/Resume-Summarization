@@ -23,6 +23,7 @@ setup(
         "pandas>=1.3.0",  # For data manipulation
         "matplotlib>=3.4.0",  # For data visualization
         "plotly>=5.0.0",  # For interactive data visualization
+        "rouge-score>=0.1.2",  # For ROUGE score calculation
     ],
     extras_require={
         "dev": [

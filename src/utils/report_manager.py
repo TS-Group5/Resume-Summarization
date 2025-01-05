@@ -59,9 +59,10 @@ class ReportManager:
         # Log individual metrics
         for metric_name, value in metrics.items():
             self.logger.report_scalar(
-                f"{step_name}/metrics",
-                metric_name,
-                value
+                title=f"{step_name}/metrics",
+                series=metric_name,
+                value=value,
+                iteration=self.current_iteration
             )
         
         # Create and log metrics summary table
@@ -74,6 +75,9 @@ class ReportManager:
             "metrics_summary",
             table_plot=df
         )
+        
+        # Increment iteration counter
+        self.current_iteration += 1
     
     def log_step_completion(self, step_name: str, status: str, output: Any = None):
         """Log step completion with detailed status."""
@@ -150,8 +154,9 @@ class ReportManager:
                     title=title,
                     series=name,
                     value=value,
-                    iteration=0
+                    iteration=self.current_iteration
                 )
+            self.current_iteration += 1
         except Exception as e:
             logger.error(f"Error logging metrics: {str(e)}")
     
@@ -331,9 +336,9 @@ class ReportManager:
             for metric, value in quality_metrics.items():
                 if metric in thresholds:
                     self.logger.report_scalar(
-                        "Quality Metrics",
-                        metric,
-                        value,
+                        title="Quality Metrics",
+                        series=metric,
+                        value=value,
                         iteration=self.current_iteration
                     )
             
@@ -349,6 +354,7 @@ class ReportManager:
             }
             
             self.publish_report("Quality Metrics Report", content, "quality")
+            self.current_iteration += 1
             
         except Exception as e:
             logger.error(f"Error publishing quality report: {e}")
@@ -369,9 +375,9 @@ class ReportManager:
             for metric, value in performance_metrics.items():
                 if isinstance(value, (int, float)):
                     self.logger.report_scalar(
-                        "Performance Metrics",
-                        metric,
-                        value,
+                        title="Performance Metrics",
+                        series=metric,
+                        value=value,
                         iteration=self.current_iteration
                     )
             
@@ -381,6 +387,7 @@ class ReportManager:
             }
             
             self.publish_report("Performance Metrics Report", content, "performance")
+            self.current_iteration += 1
             
         except Exception as e:
             logger.error(f"Error publishing performance report: {e}")
