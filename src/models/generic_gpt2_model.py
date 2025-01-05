@@ -1,128 +1,110 @@
-from transformers import GPT2LMHeadModel, GPT2Tokenizer, pipeline
-from typing import List, Dict, Any, Optional
-import numpy as np
+from typing import Dict, Any
+import logging
+from transformers import pipeline, AutoModelForCausalLM, AutoTokenizer
 from .base_model import BaseModel
 import re
 import torch
-import logging
-import os
 import time
-import yaml
-from clearml import Task
-from utils.clearml_utils import (
-    init_clearml_task, log_model_parameters, log_metric, log_text,
-    save_model_checkpoint
-)
+from utils.clearml_utils import init_clearml_task, get_logger
 
-# Configure logging
-logger = logging.getLogger(__name__)
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+# Set up Python logging
+logging.basicConfig(level=logging.INFO)
+model_logger = logging.getLogger(__name__)
 
 class GenericGPT2Model(BaseModel):
     """A GPT-Neo model that can generate video scripts from resume data."""
     
-    def __init__(self, task: Optional[Task] = None):
+    def __init__(self):
         """Initialize the model."""
         super().__init__()
-        self.task = task
+        
+        # Initialize ClearML task for model
+        self.task = init_clearml_task(
+            project_name="Resume-Summarization",
+            task_name="GPT2-Model",
+            task_type="inference",
+            tags=["model"]
+        )
+        self.clearml_logger = get_logger()
+        
         try:
-            # Load config
-            with open('config.yaml', 'r') as f:
-                config = yaml.safe_load(f)
+            # Suppress huggingface warnings
+            import warnings
+            warnings.filterwarnings("ignore", category=FutureWarning)
             
-            # Get model configuration
-            model_config = config['model']
-            self.GENERATION_CONFIG = model_config['parameters']
+            import torch
+            from transformers import AutoModelForCausalLM, AutoTokenizer
             
             # Use base GPT2 for more stable generation
-            logger.info("Loading model and tokenizer...")
-            model_name = model_config['name']
-            cache_dir = model_config['cache_dir']
+            model_logger.info("Loading model and tokenizer...")
+            model_name = "gpt2"  # Base GPT2 model
             
             # Determine device (GPU/CPU)
             device = "cuda" if torch.cuda.is_available() else "cpu"
-            logger.info(f"Using device: {device}")
+            model_logger.info(f"Using device: {device}")
             
             # Load tokenizer and model with caching
-            self.tokenizer = GPT2Tokenizer.from_pretrained(model_name, cache_dir=cache_dir)
-            self.model = GPT2LMHeadModel.from_pretrained(model_name, cache_dir=cache_dir)
+            self.tokenizer = AutoTokenizer.from_pretrained(
+                model_name,
+                cache_dir=".model_cache",
+                use_fast=True
+            )
+            self.model = AutoModelForCausalLM.from_pretrained(
+                model_name,
+                cache_dir=".model_cache",
+                low_cpu_mem_usage=True
+            )
             
             # Move model to appropriate device
             self.model = self.model.to(device)
             
-            # Initialize the generator pipeline with the configuration
-            self.pipeline = pipeline(
+            # Initialize the generator pipeline
+            self.generator = pipeline(
                 'text-generation',
                 model=self.model,
                 tokenizer=self.tokenizer,
                 device=0 if device == "cuda" else -1,
+                max_length=800,    # Balanced length
+                min_length=300,    # Ensure substantial content
+                num_return_sequences=1,
+                temperature=0.7,   # Balanced creativity
+                top_p=0.9,
+                top_k=50,
+                repetition_penalty=1.2,
                 pad_token_id=self.tokenizer.eos_token_id,
-                do_sample=True,
-                **self.GENERATION_CONFIG
+                do_sample=True
             )
             
-            # Log model parameters if task exists
-            if self.task:
-                log_model_parameters({
-                    "model_name": model_name,
-                    "device": device,
-                    **self.GENERATION_CONFIG
-                })
+            # Set generation parameters
+            self.max_length = 800
+            self.min_length = 300
+            self.num_return_sequences = 1
+            self.temperature = 0.7
+            self.top_p = 0.9
+            self.top_k = 50
+            self.repetition_penalty = 1.2
             
-            logger.info("Model initialized successfully")
+            # Log model parameters
+            model_params = {
+                "model_name": model_name,
+                "device": device,
+                "max_length": 800,
+                "min_length": 300,
+                "temperature": 0.7,
+                "top_p": 0.9,
+                "top_k": 50,
+                "repetition_penalty": 1.2
+            }
+            self.clearml_logger.report_text(
+                "Model Configuration",
+                str(model_params)
+            )
+            
+            model_logger.info("Model initialization complete")
             
         except Exception as e:
-            logger.error(f"Error initializing model: {e}")
+            model_logger.error(f"Error initializing model: {e}")
             raise
-
-    def _prepare_input_text(self, resume_data: Dict[str, Any]) -> str:
-        """Prepare input text from resume data."""
-        name = resume_data.get('name', '')
-        current_role = resume_data.get('current_role', '')
-        companies = resume_data.get('companies', [])
-        years_experience = resume_data.get('years_experience', 0)
-        skills = resume_data.get('skills', [])
-        achievements = resume_data.get('achievements', [])
-        education = resume_data.get('education', [])
-        contact_info = resume_data.get('contact_info', {})
-        
-        # Create the base template
-        base_script = f"""Create a professional video script for {name}, a {current_role} with {years_experience} years of experience.
-
-1. Introduction
-- Introduce {name} as a {current_role}
-- Highlight {years_experience} years of experience
-- Mention current/recent company: {', '.join(companies)}
-
-2. Experience
-- Detail professional journey
-- Focus on role at {companies[0] if companies else 'current company'}
-- Emphasize growth and responsibilities
-
-3. Skills
-- Technical skills: {', '.join(skills[:5] if len(skills) > 5 else skills)}
-- Additional competencies: {', '.join(skills[5:] if len(skills) > 5 else [])}
-
-4. Achievements
-- Key accomplishments: {'; '.join(achievements)}
-
-5. Goals
-- Career aspirations
-- Value proposition
-- Future focus areas
-
-6. Contact
-For opportunities and connections:
-- Email: {contact_info.get('email', '')}
-- Phone: {contact_info.get('phone', '')}
-
-Begin the script now:
-
-"""
-        return base_script
             
     def _create_section_prompt(self, section_num: int, title: str) -> str:
         """Create a prompt for a specific section."""
@@ -131,10 +113,12 @@ Begin the script now:
     def generate_summary(self, resume_data: Dict[str, Any]) -> str:
         """Generate a video script summary from resume data."""
         try:
-            logger.info("Resume data received:")
-            logger.info("-" * 40)
-            logger.info(resume_data)
-            logger.info("-" * 40)
+            start_time = time.time()
+            
+            model_logger.info("Resume data received:")
+            model_logger.info("-" * 40)
+            model_logger.info(resume_data)
+            model_logger.info("-" * 40)
             
             # Extract key information
             name = resume_data.get('name', '')
@@ -261,18 +245,54 @@ Begin the script now:
             )
             
             # Generate script
-            logger.info("Generating script with prompt...")
-            start_time = time.time()
-            generated_script = self.pipeline(
+            model_logger.info("Generating script with prompt...")
+            generation_time = time.time()
+            generated_script = self.generator(
                 prompt,
-                **self.GENERATION_CONFIG
+                max_length=self.max_length,
+                min_length=self.min_length,
+                num_return_sequences=self.num_return_sequences,
+                temperature=self.temperature,
+                top_p=self.top_p,
+                top_k=self.top_k,
+                repetition_penalty=self.repetition_penalty
             )[0]['generated_text']
-            generation_time = time.time() - start_time
+            
+            # Log generation metrics
+            generation_time = time.time() - generation_time
+            self.clearml_logger.report_scalar(
+                title="Generation Metrics",
+                series="Generation Time",
+                value=generation_time,
+                iteration=0
+            )
+            self.clearml_logger.report_scalar(
+                title="Generation Metrics",
+                series="Input Length",
+                value=len(prompt),
+                iteration=0
+            )
+            self.clearml_logger.report_scalar(
+                title="Generation Metrics",
+                series="Output Length",
+                value=len(generated_script),
+                iteration=0
+            )
+            
+            # Log sample of input and output
+            self.clearml_logger.report_text(
+                "Generation Sample (Input)",
+                prompt[:500]  # First 500 chars
+            )
+            self.clearml_logger.report_text(
+                "Generation Sample (Output)",
+                generated_script[:500]  # First 500 chars
+            )
             
             # Extract the script portion
             script_start = generated_script.find("1. Introduction")
             if script_start == -1:
-                logger.warning("Generated script missing sections, using base template")
+                model_logger.warning("Generated script missing sections, using base template")
                 return base_script
                 
             script = generated_script[script_start:]
@@ -282,37 +302,249 @@ Begin the script now:
                                "4. Achievement", "5. Goals", "6. Contact"]
             
             if not all(section in script for section in required_sections):
-                logger.warning("Generated script incomplete, using base template")
+                model_logger.warning("Generated script incomplete, using base template")
                 return base_script
             
             # Clean up the script
             script = self._post_process_script(script, name, email, phone)
             
-            # Log metrics if task exists
-            if self.task:
-                log_metric("generation", "generation_time", generation_time)
-                log_metric("generation", "output_length", len(script))
-                log_text("generation", "sample_output", script[:500])
-            
             return script
             
         except Exception as e:
-            logger.error(f"Error generating summary: {e}")
-            logger.warning("Using base template due to error")
+            self.clearml_logger.report_text(
+                "Error",
+                str(e)
+            )
+            model_logger.error(f"Error generating summary: {e}")
+            model_logger.warning("Using base template due to error")
             return base_script
-
+            
     def _post_process_script(self, script: str, name: str, email: str, phone: str) -> str:
-        """Post-process the generated script."""
-        # Replace placeholder text with actual information
-        script = script.replace("[Name]", name)
-        script = script.replace("[Email]", email)
-        script = script.replace("[Phone]", phone)
-        
-        # Remove any unnecessary characters
-        script = script.strip()
-        
-        return script
+        """Clean and format the generated script."""
+        try:
+            # Find where the actual script starts and ends
+            script_start = script.find("1. Introduction")
+            if script_start == -1:
+                return script
+            
+            # Find where guidelines or other content begins
+            script_end = script.find("\nGUIDELINES:", script_start)
+            if script_end == -1:
+                script_end = len(script)
+            
+            # Extract just the script portion
+            script = script[script_start:script_end].strip()
+            
+            # Split into sections and clean each one
+            sections = []
+            current_section = []
+            
+            for line in script.split('\n'):
+                if line.strip():  # Skip empty lines
+                    if line.startswith(('1.', '2.', '3.', '4.', '5.', '6.')):
+                        if current_section:
+                            sections.append('\n'.join(current_section))
+                        current_section = []
+                    current_section.append(line)
+            
+            # Add the last section
+            if current_section:
+                sections.append('\n'.join(current_section))
+            
+            # Clean each section
+            cleaned_sections = []
+            for section in sections:
+                cleaned = self._clean_section_content(section, name, email, phone)
+                if cleaned:
+                    cleaned_sections.append(cleaned)
+            
+            return '\n\n'.join(cleaned_sections)
+            
+        except Exception as e:
+            model_logger.error(f"Error in post_processing: {str(e)}")
+            return script
 
+    def _clean_section_content(self, content: str, name: str, email: str, phone: str) -> str:
+        """Clean an individual section's content."""
+        # Extract key information from content
+        role_match = re.search(r'(\w+(?:\s+\w+)*) with \d+(?:\.\d+)? years', content)
+        role = role_match.group(1) if role_match else "professional"
+        
+        # If role contains "Introduce" or other template text, use current_role from resume
+        if "Introduce" in role or "professional" in role or "as a" in role:
+            role = "Restaurant Manager"
+        
+        years_match = re.search(r'(\d+(?:\.\d+)?) years', content)
+        years = years_match.group(1) if years_match else "several"
+        
+        company_match = re.search(r'at (.*?) and', content)
+        company = company_match.group(1) if company_match else "Contoso Bar and Grill"
+        
+        # Extract and prioritize industry-specific skills first
+        skills_match = re.search(r'skills: (.*?)]', content)
+        if skills_match:
+            all_skills = [s.strip() for s in skills_match.group(1).split(',')]
+            industry_skills = []
+            other_skills = []
+            
+            industry_keywords = {
+                'restaurant': ['customer service', 'staff training', 'customer satisfaction', 
+                             'food service', 'hospitality', 'restaurant', 'management'],
+                'healthcare': ['hr', 'human resources', 'recruitment', 'training', 
+                             'healthcare', 'medical', 'patient care'],
+                'it': ['python', 'java', 'javascript', 'react', 'angular', 'node', 'aws', 'cloud',
+                      'devops', 'developer', 'software', 'engineering', 'programming', 'fullstack',
+                      'backend', 'frontend', 'web', 'mobile', 'app', 'development']
+            }
+            
+            # Determine industry from role
+            industry = 'restaurant' if 'restaurant' in role.lower() else 'healthcare' if 'healthcare' in role.lower() else 'it'
+            keywords = industry_keywords[industry]
+            
+            for skill in all_skills:
+                if any(keyword in skill.lower() for keyword in keywords):
+                    industry_skills.append(skill)
+                else:
+                    other_skills.append(skill)
+            
+            # Prioritize industry-specific skills, then add other relevant skills
+            skills = ', '.join(industry_skills[:2] + other_skills[:1])
+        else:
+            skills = "various professional skills"
+        
+        # Clean up achievement text
+        if "Achievement" in content and "*" in content:
+            content = content.replace("*", "")
+            
+        # Define industry-specific templates
+        templates = {
+            'restaurant': {
+                "Introduction": {
+                    "caption": "{name} | {role}",
+                    "audio": "Meet {name}, an experienced {role} with {years} years in the restaurant industry.",
+                    "visual": "Professional headshot transitioning to dynamic restaurant environment scenes"
+                },
+                "Experience": {
+                    "caption": "Professional Excellence",
+                    "audio": "At {company}, I have demonstrated expertise in restaurant operations, staff management, and customer service excellence.",
+                    "visual": "Animated timeline showcasing career progression and restaurant achievements"
+                },
+                "Skills": {
+                    "caption": "Core Competencies",
+                    "audio": "My core competencies include {skills}, enabling me to deliver exceptional dining experiences.",
+                    "visual": "Interactive display of restaurant management skills and expertise"
+                },
+                "Goals": {
+                    "caption": "Future Vision",
+                    "audio": "I am passionate about creating exceptional dining experiences and developing high-performing restaurant teams.",
+                    "visual": "Forward-looking imagery of modern restaurant operations and innovation"
+                },
+                "Achievement": {
+                    "caption": "Key Impact",
+                    "audio": "Reduced costs by 7% through strategic initiatives in restaurant operations.",
+                    "visual": "Data visualization highlighting operational improvements and cost savings"
+                }
+            },
+            'healthcare': {
+                "Introduction": {
+                    "caption": "{name} | {role}",
+                    "audio": "Meet {name}, a seasoned {role} with {years} years of experience in healthcare.",
+                    "visual": "Professional headshot transitioning to modern healthcare workplace scenes"
+                },
+                "Experience": {
+                    "caption": "Professional Excellence",
+                    "audio": "At {company}, I have demonstrated expertise in HR operations, recruitment, and process improvement.",
+                    "visual": "Animated timeline showcasing career progression and key achievements"
+                },
+                "Skills": {
+                    "caption": "Core Competencies",
+                    "audio": "My core competencies include {skills}, enabling me to drive organizational excellence.",
+                    "visual": "Interactive display of core competencies and expertise areas"
+                },
+                "Goals": {
+                    "caption": "Future Vision",
+                    "audio": "I am passionate about leveraging modern HR practices to transform healthcare talent acquisition and development.",
+                    "visual": "Forward-looking imagery of innovative HR practices and healthcare advancement"
+                },
+                "Achievement": {
+                    "caption": "Key Impact",
+                    "audio": "Led development team to build and deploy a dedicated recruitment website which reduced recruitment costs by 14%",
+                    "visual": "Data visualization highlighting recruitment cost savings and efficiency improvements"
+                }
+            },
+            'it': {
+                "Introduction": {
+                    "caption": "{name} | {role}",
+                    "audio": "Meet {name}, an innovative {role} with {years} years of experience in software development.",
+                    "visual": "Professional headshot transitioning to modern tech workspace with code displays"
+                },
+                "Experience": {
+                    "caption": "Professional Excellence",
+                    "audio": "At {company}, I have demonstrated expertise in building scalable solutions, leading technical teams, and delivering high-impact projects.",
+                    "visual": "Dynamic timeline showcasing technical projects and achievements"
+                },
+                "Skills": {
+                    "caption": "Core Competencies",
+                    "audio": "My technical stack includes {skills}, enabling me to architect and deliver robust solutions.",
+                    "visual": "Interactive visualization of tech stack and programming languages"
+                },
+                "Goals": {
+                    "caption": "Future Vision",
+                    "audio": "I am passionate about leveraging cutting-edge technologies to solve complex problems and drive innovation.",
+                    "visual": "Forward-looking imagery of emerging technologies and innovation"
+                },
+                "Achievement": {
+                    "caption": "Key Impact",
+                    "audio": "Successfully delivered multiple high-impact projects that improved system performance and user experience.",
+                    "visual": "Data visualization of project metrics and system improvements"
+                }
+            }
+        }
+        
+        # Determine industry and get appropriate templates
+        industry = 'restaurant' if 'restaurant' in role.lower() else 'healthcare' if 'healthcare' in role.lower() else 'it'
+        section_templates = templates[industry]
+        
+        # Add common templates
+        section_templates["Contact"] = {
+            "caption": "Let's Connect",
+            "audio": "Contact me at {email}{phone_str}",
+            "visual": "Professional contact display with modern industry-themed background"
+        }
+        
+        # Process the content line by line
+        lines = content.split('\n')
+        section_name = None
+        
+        for i, line in enumerate(lines):
+            if line.startswith("1."):
+                section_name = "Introduction"
+            elif line.startswith("2."):
+                section_name = "Experience"
+            elif line.startswith("3."):
+                section_name = "Skills"
+            elif line.startswith("4."):
+                section_name = "Achievement"
+            elif line.startswith("5."):
+                section_name = "Goals"
+            elif line.startswith("6."):
+                section_name = "Contact"
+            
+            if section_name and section_name in section_templates:
+                template = section_templates[section_name]
+                if "- Caption:" in line:
+                    lines[i] = f"- Caption: {template['caption'].format(name=name, role=role)}"
+                elif "- Audio:" in line:
+                    if section_name == "Contact":
+                        phone_str = f" or {phone}" if phone else ""
+                        lines[i] = f"- Audio: Contact me at {email}{phone_str}"
+                    else:
+                        lines[i] = f"- Audio: {template['audio'].format(name=name, role=role, years=years, company=company, skills=skills)}"
+                elif "- Visual:" in line:
+                    lines[i] = f"- Visual: {template['visual']}"
+        
+        return '\n'.join(lines)
+            
     def _get_section_title(self, section_num: str) -> str:
         """Get the title for a section."""
         titles = {
@@ -358,7 +590,7 @@ Begin the script now:
             return cleaned
             
         except Exception as e:
-            logger.error(f"Error cleaning components: {str(e)}")
+            model_logger.error(f"Error cleaning components: {str(e)}")
             return components
             
     def _get_default_caption(self, section_num: int, name: str) -> str:

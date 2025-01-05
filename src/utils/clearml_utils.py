@@ -6,6 +6,7 @@ import json
 import matplotlib.pyplot as plt
 import pandas as pd
 import yaml
+import torch
 
 def init_clearml_task(
     project_name: str = "Resume-Summarization",
@@ -20,13 +21,10 @@ def init_clearml_task(
     
     clearml_config = config.get('clearml', {})
     
-    # Close any existing task
-    try:
-        current_task = Task.current_task()
-        if current_task:
-            current_task.close()
-    except Exception:
-        pass
+    # Try to get current task first
+    current_task = Task.current_task()
+    if current_task:
+        return current_task
         
     # Use config values with fallbacks to parameters
     project_name = clearml_config.get('project_name', project_name)
@@ -38,28 +36,24 @@ def init_clearml_task(
     all_tags = set(tags or [])
     all_tags.update(worker_config.get('tags', []))
     
-    # Initialize new task
+    # Add system info to tags
+    if not torch.cuda.is_available():
+        all_tags.add('cpu-only')
+    
+    # Initialize new task with reuse_last_task_id=False to prevent task reuse
     task = Task.init(
         project_name=project_name,
         task_name=task_name,
         task_type=task_type,
         tags=list(all_tags),
+        reuse_last_task_id=False,
         auto_connect_frameworks={'pytorch': False}
     )
     
     # Set worker information and queue as task parameters
     if worker_config:
-        task.set_parameters(
-            {
-                "worker": {
-                    "name": worker_config.get('name', 'default-worker'),
-                    "queue": queue
-                },
-                "execution": {
-                    "queue": queue
-                }
-            }
-        )
+        task.set_parameters(worker_config)
+        task.set_user_properties(worker_config)
     
     return task
 
