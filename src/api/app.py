@@ -10,6 +10,8 @@ from fastapi.responses import Response
 import time
 import logging
 from utils.clearml_utils import init_clearml_task, get_logger
+from utils.report_manager import ReportManager
+from utils.resource_monitor import ResourceMonitor
 from models.generic_gpt2_model import GenericGPT2Model
 from parsers.ats_parser import ATSParser
 from parsers.industry_manager_parser import IndustryManagerParser
@@ -27,9 +29,17 @@ task = init_clearml_task(
 )
 clearml_logger = get_logger()
 
+# Initialize managers and monitors
+report_manager = ReportManager(task)
+resource_monitor = ResourceMonitor(task)
+resource_monitor.start_monitoring()
+
 # Load configuration
 with open("config.yaml", "r") as f:
     config = yaml.safe_load(f)
+    
+# Log initial configuration
+report_manager.log_pipeline_start(config)
 
 from models.generic_gpt2_model import GenericGPT2Model
 from parsers.ats_parser import ATSParser

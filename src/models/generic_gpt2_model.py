@@ -6,6 +6,8 @@ import re
 import torch
 import time
 from utils.clearml_utils import init_clearml_task, get_logger
+from utils.quality_monitor import QualityMonitor
+from utils.resource_monitor import ResourceMonitor
 
 # Set up Python logging
 logging.basicConfig(level=logging.INFO)
@@ -26,6 +28,11 @@ class GenericGPT2Model(BaseModel):
             tags=["model"]
         )
         self.clearml_logger = get_logger()
+        
+        # Initialize monitors
+        self.quality_monitor = QualityMonitor(self.task)
+        self.resource_monitor = ResourceMonitor(self.task)
+        self.resource_monitor.start_monitoring()
         
         try:
             # Suppress huggingface warnings
