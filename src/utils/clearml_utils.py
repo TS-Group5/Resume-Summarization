@@ -1,12 +1,24 @@
 """ClearML utilities for tracking experiments and monitoring."""
-from typing import Any, Dict, Optional, List
-from clearml import Task, Logger, OutputModel, Dataset
 import os
-import json
-import matplotlib.pyplot as plt
+from pathlib import Path
+from clearml import Task, Logger, OutputModel, Dataset
+from typing import Optional, Dict, List, Any
 import pandas as pd
 import yaml
 import torch
+import matplotlib.pyplot as plt
+
+# Set custom configuration file path
+CLEARML_CONFIG_PATH = str(Path(__file__).parent.parent.parent / 'clearml.conf')
+os.environ['CLEARML_CONFIG_FILE'] = CLEARML_CONFIG_PATH
+
+# Ensure ClearML is configured
+def ensure_clearml_configured():
+    """Ensure ClearML is configured with credentials."""
+    pass
+
+# Call this before any ClearML operations
+ensure_clearml_configured()
 
 def init_clearml_task(
     project_name: str = "Resume-Summarization",
