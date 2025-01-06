@@ -9,6 +9,7 @@ from utils.clearml_utils import init_clearml_task, get_logger
 from utils.quality_monitor import QualityMonitor
 from utils.resource_monitor import ResourceMonitor
 from rouge_score import rouge_scorer
+import yaml
 # Suppress huggingface warnings
 import warnings
 warnings.filterwarnings("ignore", category=FutureWarning)
@@ -24,12 +25,18 @@ class GenericGPT2Model(BaseModel):
     def __init__(self):
         """Initialize the model."""
         super().__init__()
-         # Initialize ClearML task for model
+        
+        # Load configuration
+        with open('config.yaml', 'r') as f:
+            self.config = yaml.safe_load(f)
+        
+        # Initialize ClearML task for model
+        clearml_config = self.config['model']['clearml']
         self.task = init_clearml_task(
-            project_name="Resume-Summarization",
-            task_name="GPT2-Model",
-            task_type="inference",
-            tags=["model"]
+            project_name=clearml_config['project_name'],
+            task_name=clearml_config['task_name'],
+            task_type=clearml_config['task_type'],
+            tags=clearml_config['tags']
         )
         self.clearml_logger = get_logger()
         
@@ -38,46 +45,47 @@ class GenericGPT2Model(BaseModel):
         self.resource_monitor = ResourceMonitor(self.task)
         self.resource_monitor.start_monitoring()
         try:
-            # Use base GPT2 for more stable generation
             model_logger.info("Loading model and tokenizer...")
-            model_name = "gpt2"  # Base GPT2 model
+            model_name = self.config['model']['name']
+            cache_dir = self.config['model']['cache_dir']
             
             # Determine device (GPU/CPU)
             device = "cuda" if torch.cuda.is_available() else "cpu"
             model_logger.info(f"Using device: {device}")
             
             # Load tokenizer and model with caching
-            self.tokenizer = AutoTokenizer.from_pretrained(model_name, cache_dir=".model_cache")
-            self.model = AutoModelForCausalLM.from_pretrained(model_name, cache_dir=".model_cache")
+            self.tokenizer = AutoTokenizer.from_pretrained(model_name, cache_dir=cache_dir)
+            self.model = AutoModelForCausalLM.from_pretrained(model_name, cache_dir=cache_dir)
             
             # Move model to appropriate device
             self.model = self.model.to(device)
             
             # Initialize the generator pipeline
+            generation_config = self.config['model']['generation']
             self.generator = pipeline(
                 'text-generation',
                 model=self.model,
                 tokenizer=self.tokenizer,
                 device=0 if device == "cuda" else -1,
-                max_length=800,    # Balanced length
-                min_length=300,    # Ensure substantial content
-                num_return_sequences=1,
-                temperature=0.7,   # Balanced creativity
-                top_p=0.9,
-                top_k=50,
-                repetition_penalty=1.2,
+                max_length=generation_config['max_length'],
+                min_length=generation_config['min_length'],
+                num_return_sequences=generation_config['num_return_sequences'],
+                temperature=generation_config['temperature'],
+                top_p=generation_config['top_p'],
+                top_k=generation_config['top_k'],
+                repetition_penalty=generation_config['repetition_penalty'],
                 pad_token_id=self.tokenizer.eos_token_id,
                 do_sample=True
             )
             
             # Set generation parameters
-            self.max_length = 800
-            self.min_length = 300
-            self.num_return_sequences = 1
-            self.temperature = 0.7
-            self.top_p = 0.9
-            self.top_k = 50
-            self.repetition_penalty = 1.2
+            self.max_length = generation_config['max_length']
+            self.min_length = generation_config['min_length']
+            self.num_return_sequences = generation_config['num_return_sequences']
+            self.temperature = generation_config['temperature']
+            self.top_p = generation_config['top_p']
+            self.top_k = generation_config['top_k']
+            self.repetition_penalty = generation_config['repetition_penalty']
             
             # Load reference scripts for ROUGE calculation
             self.reference_scripts = {

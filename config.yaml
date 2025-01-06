@@ -18,13 +18,19 @@ api:
 model:
   name: "gpt2"
   cache_dir: ".model_cache"
-  parameters:
+  generation:
     max_length: 800
     min_length: 300
+    num_return_sequences: 1
     temperature: 0.7
     top_p: 0.9
     top_k: 50
     repetition_penalty: 1.2
+  clearml:
+    project_name: "Resume-Summarization"
+    task_name: "GPT2-Model"
+    task_type: "inference"
+    tags: ["model"]
 
 # File Configuration
 file:
