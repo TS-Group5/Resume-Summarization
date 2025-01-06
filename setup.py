@@ -18,6 +18,8 @@ setup(
         "prometheus_client",  # For Prometheus metrics
         "python-multipart",  # For handling form data in FastAPI
         "clearml",
+        "matplotlib",
+        "pandas",
     ],
     extras_require={
         "dev": [

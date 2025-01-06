@@ -12,3 +12,4 @@ python-multipart  # For handling form data in FastAPI
 prometheus_client
 wheel
 clearml
+matplotlib
