@@ -14,6 +14,11 @@ from utils.resource_monitor import ResourceMonitor
 from models.generic_gpt2_model import GenericGPT2Model
 from parsers.ats_parser import ATSParser
 from parsers.industry_manager_parser import IndustryManagerParser
+from pathlib import Path
+
+# Set application root directory
+APP_ROOT = Path(__file__).parent.parent.parent
+CONFIG_PATH = APP_ROOT / 'config.yaml'
 
 # Set up Python logging
 logging.basicConfig(level=logging.INFO)
@@ -34,7 +39,7 @@ resource_monitor = ResourceMonitor(task)
 resource_monitor.start_monitoring()
 
 # Load configuration
-with open("config.yaml", "r") as f:
+with open(CONFIG_PATH, "r") as f:
     config = yaml.safe_load(f)
     
 # Log initial configuration

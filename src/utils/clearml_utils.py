@@ -8,9 +8,9 @@ import yaml
 import torch
 import matplotlib.pyplot as plt
 
-# Set custom configuration file path
-CLEARML_CONFIG_PATH = str(Path(__file__).parent.parent.parent / 'clearml.conf')
-os.environ['CLEARML_CONFIG_FILE'] = CLEARML_CONFIG_PATH
+# Set application root directory
+APP_ROOT = Path(__file__).parent.parent.parent
+CONFIG_PATH = APP_ROOT / 'config.yaml'
 
 # Ensure ClearML is configured
 def ensure_clearml_configured():
@@ -28,7 +28,7 @@ def init_clearml_task(
 ) -> Task:
     """Initialize a ClearML task."""
     # Load config
-    with open('config.yaml', 'r') as f:
+    with open(CONFIG_PATH, 'r') as f:
         config = yaml.safe_load(f)
     
     clearml_config = config.get('clearml', {})

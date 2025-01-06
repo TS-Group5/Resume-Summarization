@@ -10,6 +10,7 @@ from utils.quality_monitor import QualityMonitor
 from utils.resource_monitor import ResourceMonitor
 from rouge_score import rouge_scorer
 import yaml
+from pathlib import Path
 # Suppress huggingface warnings
 import warnings
 warnings.filterwarnings("ignore", category=FutureWarning)
@@ -19,6 +20,10 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 logging.basicConfig(level=logging.INFO)
 model_logger = logging.getLogger(__name__)
 
+# Set application root directory
+APP_ROOT = Path(__file__).parent.parent.parent
+CONFIG_PATH = APP_ROOT / 'config.yaml'
+
 class GenericGPT2Model(BaseModel):
     """A GPT-Neo model that can generate video scripts from resume data."""
     
@@ -27,7 +32,7 @@ class GenericGPT2Model(BaseModel):
         super().__init__()
         
         # Load configuration
-        with open('config.yaml', 'r') as f:
+        with open(CONFIG_PATH, 'r') as f:
             self.config = yaml.safe_load(f)
         
         # Initialize ClearML task for model
