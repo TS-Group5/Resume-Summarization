@@ -6,7 +6,6 @@ on:
     workflows: ["CI Pipeline"]
     types:
       - completed
-    branches: [main]
 
 jobs:
   deploy:
@@ -24,4 +23,6 @@ jobs:
       - name: Run Docker Container
         env: 
           DOCKER_USER: ${{ secrets.DOCKER_USER_NAME }}
-        run: sudo docker run -it -d -p 8080:8080 -p 8502:8502 --name resume-summarization-api-container $DOCKER_USER/resume-summarization:latest
+          CLEARML_API_ACCESS_KEY: ${{ secrets.CLEARML_API_ACCESS_KEY }}
+          CLEARML_API_SECRET_KEY: ${{ secrets.CLEARML_API_SECRET_KEY }}
+        run: sudo docker run -it -d -p 8080:8080 -p 8502:8502 -e CLEARML_API_ACCESS_KEY=$CLEARML_API_ACCESS_KEY -e CLEARML_API_SECRET_KEY=$CLEARML_API_SECRET_KEY --name resume-summarization-api-container $DOCKER_USER/resume-summarization:latest

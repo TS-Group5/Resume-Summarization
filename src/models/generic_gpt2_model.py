@@ -5,24 +5,17 @@ from .base_model import BaseModel
 import re
 import torch
 import time
+from clearml import Task
 from utils.clearml_utils import init_clearml_task, get_logger
 from utils.quality_monitor import QualityMonitor
 from utils.resource_monitor import ResourceMonitor
 from rouge_score import rouge_scorer
-import yaml
-from pathlib import Path
 # Suppress huggingface warnings
 import warnings
 warnings.filterwarnings("ignore", category=FutureWarning)
 
-
-# Set up Python logging
 logging.basicConfig(level=logging.INFO)
 model_logger = logging.getLogger(__name__)
-
-# Set application root directory
-APP_ROOT = Path(__file__).parent.parent.parent
-CONFIG_PATH = APP_ROOT / 'config.yaml'
 
 class GenericGPT2Model(BaseModel):
     """A GPT-Neo model that can generate video scripts from resume data."""
@@ -30,18 +23,13 @@ class GenericGPT2Model(BaseModel):
     def __init__(self):
         """Initialize the model."""
         super().__init__()
-        
-        # Load configuration
-        with open(CONFIG_PATH, 'r') as f:
-            self.config = yaml.safe_load(f)
-        
         # Initialize ClearML task for model
-        clearml_config = self.config['model']['clearml']
+        #clearml_config = self.config['model']['clearml']
         self.task = init_clearml_task(
-            project_name=clearml_config['project_name'],
-            task_name=clearml_config['task_name'],
-            task_type=clearml_config['task_type'],
-            tags=clearml_config['tags']
+            project_name="Resume-Summarization",
+            task_name="default",
+            task_type=Task.TaskTypes.inference,
+            tags=["gpt2", "video", "script", "generation"]
         )
         self.clearml_logger = get_logger()
         
@@ -50,49 +38,48 @@ class GenericGPT2Model(BaseModel):
         self.resource_monitor = ResourceMonitor(self.task)
         self.resource_monitor.start_monitoring()
         try:
+
+            # Use base GPT2 for more stable generation
             model_logger.info("Loading model and tokenizer...")
-            model_name = self.config['model']['name']
-            cache_dir = self.config['model']['cache_dir']
+            model_name = "gpt2"  # Base GPT2 model
             
             # Determine device (GPU/CPU)
             device = "cuda" if torch.cuda.is_available() else "cpu"
             model_logger.info(f"Using device: {device}")
             
             # Load tokenizer and model with caching
-            self.tokenizer = AutoTokenizer.from_pretrained(model_name, cache_dir=cache_dir)
-            self.model = AutoModelForCausalLM.from_pretrained(model_name, cache_dir=cache_dir)
+            self.tokenizer = AutoTokenizer.from_pretrained(model_name, cache_dir=".model_cache")
+            self.model = AutoModelForCausalLM.from_pretrained(model_name, cache_dir=".model_cache")
             
             # Move model to appropriate device
             self.model = self.model.to(device)
             
             # Initialize the generator pipeline
-            generation_config = self.config['model']['generation']
             self.generator = pipeline(
                 'text-generation',
                 model=self.model,
                 tokenizer=self.tokenizer,
                 device=0 if device == "cuda" else -1,
-                max_length=generation_config['max_length'],
-                min_length=generation_config['min_length'],
-                num_return_sequences=generation_config['num_return_sequences'],
-                temperature=generation_config['temperature'],
-                top_p=generation_config['top_p'],
-                top_k=generation_config['top_k'],
-                repetition_penalty=generation_config['repetition_penalty'],
+                max_length=800,    # Balanced length
+                min_length=300,    # Ensure substantial content
+                num_return_sequences=1,
+                temperature=0.7,   # Balanced creativity
+                top_p=0.9,
+                top_k=50,
+                repetition_penalty=1.2,
                 pad_token_id=self.tokenizer.eos_token_id,
                 do_sample=True
             )
             
             # Set generation parameters
-            self.max_length = generation_config['max_length']
-            self.min_length = generation_config['min_length']
-            self.num_return_sequences = generation_config['num_return_sequences']
-            self.temperature = generation_config['temperature']
-            self.top_p = generation_config['top_p']
-            self.top_k = generation_config['top_k']
-            self.repetition_penalty = generation_config['repetition_penalty']
+            self.max_length = 800
+            self.min_length = 300
+            self.num_return_sequences = 1
+            self.temperature = 0.7
+            self.top_p = 0.9
+            self.top_k = 50
+            self.repetition_penalty = 1.2
             
-            # Load reference scripts for ROUGE calculation
             self.reference_scripts = {
                 "ats": """
                     1. Introduction
@@ -174,8 +161,7 @@ class GenericGPT2Model(BaseModel):
                 f"Pad Token ID: {self.tokenizer.eos_token_id}\n"
                 f"Do Sample: True\n"
             )
-
-            self.clearml_logger.report_text("Model Configurations", configurations)
+            self.clearml_logger.report_text("Model Configurations", str(configurations))
             model_logger.info("Model initialized successfully")
             
         except Exception as e:
@@ -331,7 +317,6 @@ class GenericGPT2Model(BaseModel):
                 top_k=self.top_k,
                 repetition_penalty=self.repetition_penalty
             )[0]['generated_text']
-            
             # Calculate ROUGE score
             scorer = rouge_scorer.RougeScorer(['rouge1', 'rouge2', 'rougeL'], use_stemmer=True)
             scores = scorer.score(self.reference_scripts[industry], generated_script)
@@ -386,7 +371,6 @@ class GenericGPT2Model(BaseModel):
                     value=value,
                     iteration=0
                 )
-            
             # Extract the script portion
             script_start = generated_script.find("1. Introduction")
             if script_start == -1:

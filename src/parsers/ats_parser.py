@@ -1040,8 +1040,7 @@ class ATSParser(BaseParser):
 
 # Example usage
 if __name__ == "__main__":
-    import json
     file_path = 'src/templates/ATS classic HR resume.docx'
     parser = ATSParser(file_path)
     parsed_data = parser.parse()
-    print(json.dumps(parsed_data, indent=4))
+    #print(json.dumps(parsed_data, indent=4))
