@@ -20,6 +20,7 @@ setup(
         "clearml",
         "matplotlib",
         "pandas",
+        "plotly"
     ],
     extras_require={
         "dev": [
