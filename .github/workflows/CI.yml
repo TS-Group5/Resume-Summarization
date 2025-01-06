@@ -5,6 +5,12 @@ on:
       - main
   workflow_dispatch:
 
+env:
+  CLEARML_API_ACCESS_KEY: ${{ secrets.CLEARML_API_ACCESS_KEY }}
+  CLEARML_API_SECRET_KEY: ${{ secrets.CLEARML_API_SECRET_KEY }}
+  CLEARML_API_HOST: ${{ secrets.CLEARML_API_HOST }}
+  CLEARML_FILES_HOST: ${{ secrets.CLEARML_FILES_HOST }}
+
 jobs:
   lint:
     runs-on: ubuntu-latest
@@ -42,6 +48,19 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -e ".[dev]"  # Install package with development dependencies
+    
+    - name: Configure ClearML
+      run: |
+        mkdir -p ~/.clearml
+        echo "api {
+            web_server: $CLEARML_API_HOST
+            api_server: $CLEARML_API_HOST
+            files_server: $CLEARML_FILES_HOST
+            credentials {
+                access_key: $CLEARML_API_ACCESS_KEY
+                secret_key: $CLEARML_API_SECRET_KEY
+            }
+        }" > ~/.clearml/config.txt
     
     - name: Add src to PYTHONPATH
       run: echo "PYTHONPATH=$(pwd)/src" >> $GITHUB_ENV
