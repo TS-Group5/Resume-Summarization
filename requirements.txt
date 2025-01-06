@@ -11,3 +11,4 @@ prometheus_client  # For Prometheus metrics
 python-multipart  # For handling form data in FastAPI
 prometheus_client
 wheel
+clearml
