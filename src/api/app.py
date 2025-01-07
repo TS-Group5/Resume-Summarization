@@ -11,6 +11,8 @@ import logging
 import utils.clearml_utils as clearml_utils
 from utils.report_manager import ReportManager
 from utils.resource_monitor import ResourceMonitor
+from utils.quality_monitor import QualityMonitor
+from rouge_score import rouge_scorer
 import warnings
 from models.generic_gpt2_model import GenericGPT2Model
 from parsers.ats_parser import ATSParser
@@ -32,6 +34,9 @@ task = clearml_utils.init_clearml_task(
     task_type="inference",
     tags=["api"]
 )
+
+# Initialize QualityMonitor with the task
+quality_monitor = QualityMonitor(task)
 
 clearml_logger = clearml_utils.get_logger()
 
@@ -126,7 +131,13 @@ async def generate_script(
         with open(temp_path, "wb") as buffer:
             content = await file.read()
             buffer.write(content)
-        
+            
+        # Upload resume artifact
+        task.upload_artifact(
+            name="Uploaded Resume",
+            artifact_object=temp_path,
+            metadata={"template_type": template_type, "filename": file.filename}
+        )
         # Use parser based on user's template selection
         if template_type.lower() == "ats":
             parser = ATSParser(temp_path)
@@ -146,6 +157,32 @@ async def generate_script(
         resume_data = parser.parse()
         print('==========================================',resume_data)
         script = gpt2_model.generate_summary(resume_data)
+        generation_time = time.time() - start_time
+        # Reference text for quality comparison (e.g., stored templates)
+        reference_text = gpt2_model.reference_scripts.get(template_type.lower(), "")
+
+        # Track quality
+        quality_metrics = quality_monitor.track_generation_quality(
+            generated_text= script,
+            reference_text=reference_text,
+            generation_time=generation_time,
+            metadata={"template_type": template_type, "resume_name": file.filename}
+        )
+
+        # Upload generated script
+        task.upload_artifact(
+            name="Generated Script",
+            artifact_object=script,
+            metadata={"template_type": template_type}
+        )
+        
+        # Log quality metrics
+        quality_metrics = gpt2_model.quality_monitor.track_generation_quality(
+            script,
+            gpt2_model.reference_scripts.get(template_type.lower(), ""),
+            generation_time=time.time() - start_time
+        )
+        
          # Log metrics
         processing_time = time.time() - start_time
         clearml_logger.report_scalar(
@@ -199,6 +236,8 @@ async def generate_script(
     
     except Exception as e:
         # Log error and publish error report
+        error_message = str(e)
+        quality_monitor.track_error(error_message)
         app_logger.error(f"Error generating script: {str(e)}")
         report_manager.publish_error_report([{
             "type": type(e).__name__,
