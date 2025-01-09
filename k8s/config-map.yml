@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: resume-config
+data:
+  model_path: "/app/models"
+  api_url: "http://resume-video-generator:8080"
+  
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: template-config
+data:
+  default-template.html: |
+    <!-- Your template HTML here -->
+  styles.css: |
+    /* Your CSS styles here */

@@ -17,10 +17,11 @@ spec:
       containers:
       - name: resume-video-generator
         image: ${DOCKER_HUB_USERNAME}/resume-video-generator:latest
+        imagePullPolicy: Always
         ports:
-        - containerPort: 8000  # FastAPI
+        - containerPort: 8080
           name: api
-        - containerPort: 8501  # Streamlit
+        - containerPort: 8502
           name: ui
         resources:
           requests:
@@ -31,30 +32,46 @@ spec:
             cpu: "1000m"
         env:
         - name: MODEL_PATH
-          value: "/app/models"
+          valueFrom:
+            configMapKeyRef:
+              name: resume-config
+              key: model_path
         - name: API_URL
-          value: "http://localhost:8000"  # Internal API URL
+          valueFrom:
+            configMapKeyRef:
+              name: resume-config
+              key: api_url
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
         volumeMounts:
         - name: model-storage
           mountPath: /app/models
+          readOnly: true
         - name: template-storage
           mountPath: /app/src/templates
+          readOnly: true
         readinessProbe:
           httpGet:
-            path: /docs  # FastAPI docs endpoint
-            port: 8000
+            path: /health
+            port: api
           initialDelaySeconds: 30
           periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
         livenessProbe:
           httpGet:
-            path: /docs
-            port: 8000
+            path: /health
+            port: api
           initialDelaySeconds: 60
-          periodSeconds: 20
+          periodSeconds: 15
+          timeoutSeconds: 5
+          failureThreshold: 3
       volumes:
       - name: model-storage
         persistentVolumeClaim:
-          claimName: model-storage-pvc
+          claimName: model-pvc
       - name: template-storage
-        persistentVolumeClaim:
-          claimName: template-storage-pvc
+        configMap:
+          name: template-config
