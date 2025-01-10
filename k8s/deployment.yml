@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: resume-summarization
-        image: tsgroup0555/resume-summarization:latest
+        image: ${DOCKER_USER}/resume-summarization:latest
         imagePullPolicy: Always
         ports:
         - containerPort: 8080
