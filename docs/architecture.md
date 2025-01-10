@@ -2,12 +2,13 @@
 
 ## System Architecture
 
-The Resume Summary Generator is built with a microservices architecture pattern, consisting of two main services:
+The Resume Summary Generator is built with a containerized microservices architecture, deployed on Kubernetes:
 
 1. **FastAPI Backend Service**
    - Handles resume processing and summary generation
    - Provides RESTful API endpoints
    - Manages model inference and parsing
+   - Integrated with ClearML for experiment tracking
 
 2. **Streamlit Frontend Service**
    - Provides user interface for file upload
@@ -45,10 +46,31 @@ The Resume Summary Generator is built with a microservices architecture pattern,
   - Summary Display
   - Download Functionality
 
+## Infrastructure
+
+### 1. Kubernetes Deployment
+- **Components**:
+  - Deployment managing application pods
+  - LoadBalancer Service exposing API and UI
+  - Horizontal Pod Autoscaler for scaling
+  - Secrets for managing credentials
+
+### 2. Auto-scaling
+- **HPA Configuration**:
+  - Scale based on CPU and Memory utilization
+  - 1-3 replicas based on load
+  - Configurable scaling policies
+
+### 3. Service Exposure
+- **Endpoints**:
+  - API: http://localhost:80
+  - UI: http://localhost:8502
+  - Health Check: http://localhost/health
+
 ## Data Flow
 
 1. **Resume Upload**:
-   - User uploads DOCX file
+   - User uploads DOCX file via UI
    - File validation and temporary storage
 
 2. **Processing**:
@@ -72,15 +94,31 @@ The Resume Summary Generator is built with a microservices architecture pattern,
    - Input validation
    - Error handling
 
+3. **Kubernetes Security**:
+   - Secrets for sensitive data
+   - Non-root container execution
+   - Resource limits and quotas
+
 ## Deployment
 
-The application is containerized using Docker and can be deployed to various cloud platforms:
-- AWS ECS/EKS
-- Google Cloud Run
-- Azure Container Apps
+The application is containerized using Docker and deployed on Kubernetes:
+- Docker image: tsgroup0555/resume-summarization
+- Kubernetes deployment with auto-scaling
+- LoadBalancer service for external access
 
-## Monitoring and Logging
+## Monitoring
 
-- Structured logging throughout the application
-- Health check endpoints
-- Error tracking and reporting
+1. **Kubernetes Monitoring**:
+   - Pod health and status
+   - Resource utilization
+   - Auto-scaling metrics
+
+2. **Application Monitoring**:
+   - Health check endpoints
+   - Request metrics
+   - Error tracking
+
+3. **ClearML Integration**:
+   - Experiment tracking
+   - Model performance monitoring
+   - Training metrics

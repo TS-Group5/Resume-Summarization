@@ -2,137 +2,170 @@
 
 ## Overview
 
-The Resume Video Script Generator includes comprehensive monitoring using Prometheus and Grafana. This setup provides real-time insights into system performance, usage patterns, and error rates.
+The Resume Summarization system uses a comprehensive monitoring setup combining Kubernetes, ClearML, and custom monitoring components.
 
-## Metrics
+## Monitoring Components
 
-### Application Metrics
-
-1. **Request Metrics**
-   - `resume_video_requests_total`: Total number of script generation requests
-   - Labels:
-     - `template_type`: "ATS/HR" or "Industry Manager"
-
-2. **Processing Time**
-   - `resume_video_processing_seconds`: Histogram of script generation processing times
-   - Labels:
-     - `template_type`: "ATS/HR" or "Industry Manager"
-
-3. **Error Metrics**
-   - `resume_video_errors_total`: Count of errors during script generation
-   - Labels:
-     - `template_type`: Template type when error occurred
-     - `error_type`: Python exception name
-
-## Prometheus
-
-### Configuration
-
-Prometheus is configured to:
-- Scrape metrics every 15 seconds
-- Retain data for 15 days
-- Auto-discover Kubernetes pods
-- Store data in a 10GB persistent volume
-
-### Access
-
-```bash
-# Port-forward Prometheus UI
-kubectl port-forward svc/prometheus-service 9090:9090
+### 1. Kubernetes Deployment
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: resume-summarization
+spec:
+  replicas: 1
+  template:
+    spec:
+      containers:
+        - name: resume-summarization
+          image: tsgroup0555/resume-summarization:latest
+          ports:
+            - containerPort: 80
+            - containerPort: 8502
 ```
 
-Access the Prometheus UI at: http://localhost:9090
-
-## Grafana
-
-### Default Dashboard
-
-The system comes with a pre-configured dashboard showing:
-1. Request Rate (5-minute window)
-2. Average Processing Time
-3. Error Count by Type
-
-### Access
-
-```bash
-# Get Grafana service URL
-kubectl get svc grafana-service
-
-# Default credentials
-Username: admin
-Password: admin
+### 2. Auto-scaling (HPA)
+```yaml
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: resume-summarization-hpa
+spec:
+  minReplicas: 1
+  maxReplicas: 3
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 80
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
 ```
 
-### Dashboard Sections
-
-1. **Request Overview**
-   ```promql
-   rate(resume_video_requests_total[5m])
-   ```
-   Shows the rate of requests over time, broken down by template type.
-
-2. **Performance Metrics**
-   ```promql
-   rate(resume_video_processing_seconds_sum[5m]) / rate(resume_video_processing_seconds_count[5m])
-   ```
-   Displays average processing time for script generation.
-
-3. **Error Tracking**
-   ```promql
-   resume_video_errors_total
-   ```
-   Shows error count broken down by type and template.
-
-## Alerting
-
-### Default Alert Rules
-
-1. High Error Rate
-   ```yaml
-   - alert: HighErrorRate
-     expr: rate(resume_video_errors_total[5m]) > 0.1
-     for: 5m
-     labels:
-       severity: warning
-     annotations:
-       description: "High error rate detected in script generation"
-   ```
-
-2. Slow Processing
-   ```yaml
-   - alert: SlowProcessing
-     expr: rate(resume_video_processing_seconds_sum[5m]) / rate(resume_video_processing_seconds_count[5m]) > 10
-     for: 5m
-     labels:
-       severity: warning
-     annotations:
-       description: "Script generation is taking longer than expected"
-   ```
-
-## Kubernetes Integration
-
-All monitoring components are deployed as Kubernetes resources:
-- Prometheus Deployment and Service
-- Grafana Deployment and Service
-- Persistent Volume Claims for data storage
-- ConfigMaps for configuration
-
-## Adding Custom Metrics
-
-To add new metrics to the application:
-
-1. Define the metric in FastAPI:
+### 3. ClearML Integration
 ```python
-from prometheus_client import Counter, Histogram
+from clearml import Task
 
-NEW_METRIC = Counter(
-    'metric_name_total',
-    'Metric description',
-    ['label1', 'label2']
+task = Task.init(
+    project_name="Resume-Summarization",
+    task_name="resume-processing"
 )
 ```
 
-2. Update the Grafana dashboard:
-   - Add new panel
-   - Use PromQL to query the new metric
-   - Configure visualization options
+## Monitoring Systems
+
+### 1. ResourceMonitor
+Tracks system-level metrics:
+- CPU usage
+- Memory utilization
+- Disk usage
+- Network I/O
+
+### 2. QualityMonitor
+Tracks generation quality:
+- ROUGE scores
+- Generation time
+- Summary length
+- Error rates
+
+### 3. ReportManager
+Handles metric visualization:
+- Quality reports
+- Performance metrics
+- Error analysis
+- Resource utilization
+
+## Access Points
+
+### 1. Application Endpoints
+- API: http://localhost:80
+- UI: http://localhost:8502
+- Health: http://localhost/health
+
+### 2. Monitoring Dashboards
+- ClearML Web Interface: https://app.clear.ml
+- Kubernetes Dashboard
+
+## Metrics Tracked
+
+### 1. Performance Metrics
+- Request processing time
+- Generation throughput
+- Success/failure rates
+- Error counts
+
+### 2. Quality Metrics
+- ROUGE scores (rouge1, rouge2, rougeL)
+- Generation time
+- Summary length
+- Error analysis
+
+### 3. Resource Metrics
+- CPU utilization
+- Memory usage
+- Disk usage
+- Network I/O
+
+## Kubernetes Commands
+
+### Deployment Management
+```bash
+# Check deployment status
+kubectl get deployments
+
+# View pods
+kubectl get pods
+
+# Check logs
+kubectl logs -f <pod-name>
+```
+
+### Auto-scaling Management
+```bash
+# View HPA status
+kubectl get hpa
+
+# Check HPA details
+kubectl describe hpa resume-summarization-hpa
+```
+
+### Service Management
+```bash
+# Check services
+kubectl get services
+
+# Service details
+kubectl describe service resume-summarization
+```
+
+## Best Practices
+
+### 1. Resource Management
+- Monitor resource usage trends
+- Adjust HPA thresholds as needed
+- Set appropriate resource limits
+- Regular resource optimization
+
+### 2. Quality Monitoring
+- Track all generations
+- Set quality thresholds
+- Monitor error patterns
+- Regular quality reviews
+
+### 3. Performance Optimization
+- Monitor response times
+- Track throughput
+- Identify bottlenecks
+- Optimize critical paths
+
+### 4. Maintenance
+- Regular metric review
+- Update monitoring rules
+- Clean old metrics
+- Optimize storage usage

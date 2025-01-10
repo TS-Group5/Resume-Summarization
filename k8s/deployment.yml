@@ -1,22 +1,22 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: resume-video-generator
+  name: resume-summarization
   labels:
-    app: resume-video-generator
+    app: resume-summarization
 spec:
-  replicas: 3
+  replicas: 1
   selector:
     matchLabels:
-      app: resume-video-generator
+      app: resume-summarization
   template:
     metadata:
       labels:
-        app: resume-video-generator
+        app: resume-summarization
     spec:
       containers:
-      - name: resume-video-generator
-        image: ${DOCKER_HUB_USERNAME}/resume-video-generator:latest
+      - name: resume-summarization
+        image: tsgroup0555/resume-summarization:latest
         imagePullPolicy: Always
         ports:
         - containerPort: 8080
@@ -31,47 +31,19 @@ spec:
             memory: "2Gi"
             cpu: "1000m"
         env:
-        - name: MODEL_PATH
+        - name: CLEARML_API_ACCESS_KEY
           valueFrom:
-            configMapKeyRef:
-              name: resume-config
-              key: model_path
-        - name: API_URL
+            secretKeyRef:
+              name: clearml-credentials
+              key: access_key
+        - name: CLEARML_API_SECRET_KEY
           valueFrom:
-            configMapKeyRef:
-              name: resume-config
-              key: api_url
-        securityContext:
-          runAsNonRoot: true
-          runAsUser: 1000
-          allowPrivilegeEscalation: false
-        volumeMounts:
-        - name: model-storage
-          mountPath: /app/models
-          readOnly: true
-        - name: template-storage
-          mountPath: /app/src/templates
-          readOnly: true
-        readinessProbe:
-          httpGet:
-            path: /health
-            port: api
-          initialDelaySeconds: 30
-          periodSeconds: 10
-          timeoutSeconds: 5
-          failureThreshold: 3
-        livenessProbe:
-          httpGet:
-            path: /health
-            port: api
-          initialDelaySeconds: 60
-          periodSeconds: 15
-          timeoutSeconds: 5
-          failureThreshold: 3
-      volumes:
-      - name: model-storage
-        persistentVolumeClaim:
-          claimName: model-pvc
-      - name: template-storage
-        configMap:
-          name: template-config
+            secretKeyRef:
+              name: clearml-credentials
+              key: secret_key
+        - name: CLEARML_API_HOST
+          value: "https://api.clear.ml"
+        - name: CLEARML_WEB_HOST
+          value: "https://app.clear.ml"
+        - name: CLEARML_FILES_HOST
+          value: "https://files.clear.ml"
